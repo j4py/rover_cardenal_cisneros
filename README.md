@@ -17,7 +17,7 @@ Oliver Mignemi Martos · Marcelo A. Huayhua Moreno · Juan José Naranjo Lobato 
 
 ## 1. Descripción General
 
-El **Rover Perseverance** es un vehículo todo-terreno de 6 ruedas motrices diseñado, construido y programado íntegramente por alumnos de 2º SMR como proyecto intermodular del curso 2025/2026.
+El **Rover Perseverance** es un vehículo todo-terreno de 6 ruedas motrices basado en el proyecto de [HowToMechatronics](https://howtomechatronics.com/projects/diy-mars-perseverance-rover-replica-with-arduino/), construido y programado íntegramente por alumnos de 2º SMR como proyecto intermodular del curso 2025/2026.
 
 El sistema se divide en **tres ESP32 independientes**, cada uno con responsabilidad propia:
 
