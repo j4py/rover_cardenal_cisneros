@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# YDNS updater (generado): DDNS_TOKEN con formato usuario:contraseña
+curl -fsS -u "${DDNS_TOKEN}" "https://ydns.io/api/v1/update/?host=${DDNS_DOMAIN}" -o /var/log/ddns-rover.log

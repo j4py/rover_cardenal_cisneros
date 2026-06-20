@@ -1,0 +1,520 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calibración Brújula | Rover Perseverance</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=1.1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .glass-card {
+        @apply bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded p-5 shadow-2xl transition-all duration-300;
+      }
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeInUp { animation: fadeInUp 0.45s ease-out both; }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.25; }
+    }
+    .animate-blink { animation: blink 1.1s ease-in-out infinite; }
+
+    @keyframes spinGlow {
+      0%, 100% { box-shadow: 0 0 12px rgba(139,92,246,0.25); }
+      50%       { box-shadow: 0 0 28px rgba(139,92,246,0.55); }
+    }
+    .animate-spin-glow { animation: spinGlow 1s ease-in-out infinite; }
+  </style>
+
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
+  <script src="mqtt.js"></script>
+  <script type="text/babel" src="components/NavBar.js?v=2.2"></script>
+</head>
+
+<body class="bg-slate-950 text-slate-200 font-['Outfit'] min-h-screen flex flex-col bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black select-none">
+  <div id="root" class="flex-1 flex flex-col"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+    const NavBar = window.NavBar;
+
+    /* Compass rose */
+    const Compass = ({ heading }) => {
+      const deg = heading ?? 0;
+      const cardinals = [
+        { l:"N", a:-90, color:"#f87171" },
+        { l:"E", a:0,   color:"#94a3b8" },
+        { l:"S", a:90,  color:"#94a3b8" },
+        { l:"O", a:180, color:"#94a3b8" },
+      ];
+      return (
+        <div className="relative w-44 h-44 mx-auto shrink-0">
+          <svg viewBox="0 0 120 120" className="w-full h-full">
+            <circle cx="60" cy="60" r="57" fill="none" stroke="#1e293b" strokeWidth="2"/>
+            <circle cx="60" cy="60" r="53" fill="none" stroke="#0f172a" strokeWidth="0.5"/>
+            {Array.from({length:72}).map((_,i) => {
+              const a=(i*5-90)*Math.PI/180;
+              const isMaj=i%18===0, isMid=i%6===0;
+              const r1=isMaj?44:isMid?47:50;
+              return <line key={i}
+                x1={60+53*Math.cos(a)} y1={60+53*Math.sin(a)}
+                x2={60+r1*Math.cos(a)} y2={60+r1*Math.sin(a)}
+                stroke={isMaj?"#475569":"#1e293b"} strokeWidth={isMaj?"1.5":"0.8"}/>;
+            })}
+            {cardinals.map(({l,a,color})=>{
+              const r=(a)*Math.PI/180;
+              return <text key={l} x={60+38*Math.cos(r)} y={60+38*Math.sin(r)}
+                textAnchor="middle" dominantBaseline="middle"
+                fontSize="9" fontFamily="JetBrains Mono" fontWeight="bold" fill={color}>{l}</text>;
+            })}
+            <g transform={`rotate(${deg},60,60)`}>
+              <polygon points="60,13 63.5,58 60,62 56.5,58" fill="#8b5cf6"/>
+              <polygon points="60,107 63.5,62 60,58 56.5,62" fill="#1e293b"/>
+            </g>
+            <circle cx="60" cy="60" r="5" fill="#0f172a" stroke="#4c1d95" strokeWidth="1.5"/>
+            <circle cx="60" cy="60" r="2" fill="#7c3aed"/>
+          </svg>
+          {heading !== null && (
+            <div className="absolute inset-x-0 bottom-0 text-center">
+              <span className="text-[11px] font-mono text-violet-400 tabular-nums">{heading}°</span>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    /* Step */
+    const Step = ({ num, title, desc, state }) => {
+      const s = {
+        done:    { wrap:"border-green-500/30 bg-green-950/20",   badge:"bg-green-500/20 border-green-500/40 text-green-300",   title:"text-green-400"  },
+        active:  { wrap:"border-violet-500/50 bg-violet-950/20", badge:"bg-violet-500/20 border-violet-500/40 text-violet-300", title:"text-violet-300" },
+        pending: { wrap:"border-slate-800/60 bg-slate-900/30",   badge:"bg-slate-800 border-slate-700 text-slate-600",          title:"text-slate-500"  },
+      }[state] ?? {};
+      return (
+        <div className={`flex gap-3 p-3 rounded border transition-all duration-500 ${s.wrap}`}>
+          <div className={`shrink-0 w-7 h-7 rounded-full border flex items-center justify-center text-xs font-bold font-mono ${s.badge}`}>
+            {state==="done"?"✓":num}
+          </div>
+          <div>
+            <p className={`text-sm font-semibold leading-snug ${s.title}`}>{title}</p>
+            <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{desc}</p>
+          </div>
+        </div>
+      );
+    };
+
+    /* Spin button */
+    const SpinBtn = ({ dir, active, onStart, onEnd, disabled }) => {
+      const isActive = active === dir;
+      return (
+        <button
+          onMouseDown={()=>!disabled&&onStart(dir)}
+          onMouseUp={onEnd} onMouseLeave={onEnd}
+          onTouchStart={e=>{e.preventDefault();if(!disabled)onStart(dir);}}
+          onTouchEnd={onEnd} onTouchCancel={onEnd}
+          disabled={disabled}
+          style={{touchAction:"none"}}
+          className={`flex-1 py-7 rounded border-2 flex flex-col items-center justify-center gap-2 transition-all duration-150
+            ${disabled?"opacity-30 cursor-not-allowed border-slate-800 bg-slate-900/30"
+              :isActive?"border-violet-500 bg-violet-900/30 animate-spin-glow scale-[0.98]"
+              :"border-slate-700 bg-slate-900/50 hover:border-violet-700 hover:bg-violet-900/10 active:scale-[0.97] cursor-pointer"}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className={`transition-colors ${isActive?"text-violet-300":"text-slate-400"}`}
+            style={{transform:dir==="left"?"scaleX(-1)":"none"}}>
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+          </svg>
+          <span className={`text-[11px] font-mono font-bold tracking-widest uppercase transition-colors ${isActive?"text-violet-300":"text-slate-500"}`}>
+            SPIN {dir==="left"?"←":"→"}
+          </span>
+          {isActive
+            ? <span className="text-[10px] text-violet-400 animate-blink font-mono">GIRANDO</span>
+            : <span className="text-[10px] text-slate-700 font-mono">mantén pulsado</span>}
+        </button>
+      );
+    };
+
+    /* Data axis */
+    const DataAxis = ({ label, min, max, refMax }) => {
+      const range = (min!==null&&max!==null) ? max-min : 0;
+      const pct   = refMax>0 ? Math.min(100,Math.round((range/refMax)*100)) : 0;
+      return (
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">{label}</span>
+            <span className="text-[10px] font-mono text-slate-500">{range>0?`rango ${range}`:"—"}</span>
+          </div>
+          {[["MIN",min],["MAX",max]].map(([l,v])=>(
+            <div key={l} className="flex items-center gap-1.5 mb-1">
+              <span className="text-[9px] font-mono text-slate-600 w-5">{l}</span>
+              <span className="text-sm font-bold font-mono text-violet-300 tabular-nums">{v!==null?v:"—"}</span>
+            </div>
+          ))}
+          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden mt-1">
+            <div className="h-full bg-violet-500 rounded-full transition-all duration-400" style={{width:`${pct}%`}}/>
+          </div>
+        </div>
+      );
+    };
+
+    /* ═══ APP ═══ */
+    function App() {
+      const [mqttStatus, setMqttStatus] = useState(false);
+      const [calStatus,  setCalStatus]  = useState("STANDBY");
+      const [calData,    setCalData]    = useState({x_min:null,x_max:null,y_min:null,y_max:null});
+      const [calResult,  setCalResult]  = useState(null);
+      const [heading,    setHeading]    = useState(null);
+      const [spinning,   setSpinning]   = useState(null);
+      const clientRef  = useRef(null);
+      const spinRef    = useRef(null);
+
+      useEffect(()=>{
+        const cfg = window.MQTT_CONFIG;
+        const client = new Paho.MQTT.Client(
+          cfg.HOST, cfg.PORT, cfg.PATH,
+          `CalDeck_${Math.random().toString(16).substr(2,6)}`
+        );
+        clientRef.current = client;
+
+        client.onConnectionLost = ()=>setMqttStatus(false);
+        client.onMessageArrived = (msg)=>{
+          try {
+            const p = JSON.parse(msg.payloadString);
+            if (msg.destinationName==="rover/calibration") {
+              if (p.status==="INICIADA") {
+                setCalStatus("CALIBRANDO");
+                setCalData({x_min:null,x_max:null,y_min:null,y_max:null});
+              } else if (p.status==="CALIBRANDO") {
+                setCalStatus("CALIBRANDO");
+                setCalData({x_min:p.x_min,x_max:p.x_max,y_min:p.y_min,y_max:p.y_max});
+              } else if (p.status==="COMPLETA") {
+                setCalStatus("COMPLETA");
+                setCalResult(p);
+                spinRef.current=null;
+                setSpinning(null);
+              }
+            }
+            if (msg.destinationName==="rover/telemetry"&&p.heading!==undefined) {
+              setHeading(p.heading);
+            }
+          } catch(_){}
+        };
+
+        client.connect({
+          useSSL:true, userName:cfg.USERNAME, password:cfg.PASSWORD,
+          keepAliveInterval:20,
+          onSuccess:()=>{
+            setMqttStatus(true);
+            client.subscribe("rover/calibration");
+            client.subscribe("rover/telemetry");
+          },
+          onFailure:()=>setMqttStatus(false),
+        });
+
+        return ()=>{if(client.isConnected())client.disconnect();};
+      },[]);
+
+      const publish=(topic,payload)=>{
+        if(!clientRef.current?.isConnected())return;
+        const msg=new Paho.MQTT.Message(typeof payload==="string"?payload:JSON.stringify(payload));
+        msg.destinationName=topic;
+        clientRef.current.send(msg);
+      };
+
+      const startCal=()=>{
+        setCalData({x_min:null,x_max:null,y_min:null,y_max:null});
+        setCalResult(null);
+        setCalStatus("CALIBRANDO");
+        publish("rover/cmd","CALIBRATE_START");
+      };
+
+      const doSpinEnd=()=>{
+        if(spinRef.current){
+          spinRef.current=null;
+          setSpinning(null);
+          publish("rover/move",{x:0,y:0,spin:false});
+        }
+      };
+
+      const stopCal=()=>{
+        doSpinEnd();
+        publish("rover/cmd","CALIBRATE_END");
+      };
+
+      const SPIN_SPEED = 0.35;
+      const KICK_MS    = 300;
+      const handleSpinStart=(dir)=>{
+        if(!mqttStatus)return;
+        spinRef.current=dir;
+        setSpinning(dir);
+        const xDir = dir==="right" ? 1 : -1;
+        publish("rover/move",{x:xDir,y:0,spin:true});
+        setTimeout(()=>{
+          if(spinRef.current===dir)
+            publish("rover/move",{x:xDir*SPIN_SPEED,y:0,spin:true});
+        }, KICK_MS);
+      };
+
+      /* Quality */
+      const xRange  = calData.x_max!==null ? calData.x_max-calData.x_min : 0;
+      const yRange  = calData.y_max!==null ? calData.y_max-calData.y_min : 0;
+      const refMax  = Math.max(xRange,yRange,1);
+      const quality = xRange>0&&yRange>0 ? Math.round(Math.min(xRange,yRange)/Math.max(xRange,yRange)*100) : 0;
+      const qualColor = quality>=80?"text-green-400":quality>=50?"text-amber-400":"text-slate-600";
+      const barColor  = quality>=80?"bg-green-500" :quality>=50?"bg-amber-500" :"bg-rose-600";
+
+      /* Step states */
+      const stepState=(n)=>{
+        if(calStatus==="STANDBY")    return n===1?"active":"pending";
+        if(calStatus==="CALIBRANDO"){
+          if(n<=2) return "done";
+          if(n===3) return spinning?"active":"pending";
+          if(n===4) return quality>=80?"done":spinning?"active":"pending";
+          if(n===5) return quality>=80?"active":"pending";
+          return "pending";
+        }
+        return "done";
+      };
+
+      const badge={
+        STANDBY:    {label:"EN ESPERA",  cls:"bg-slate-800 text-slate-400 border-slate-700"},
+        CALIBRANDO: {label:"CALIBRANDO", cls:"bg-violet-500/20 text-violet-300 border-violet-500/40 animate-blink"},
+        COMPLETA:   {label:"COMPLETA",   cls:"bg-green-500/20 text-green-300 border-green-500/40"},
+      }[calStatus];
+
+      const spinDisabled = !mqttStatus || calStatus!=="CALIBRANDO";
+
+      return (
+        <div className="flex flex-col min-h-screen">
+          <NavBar basePath="./" isDashboard={false}/>
+          <main className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-6 lg:p-8 animate-fadeInUp">
+
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 border-b border-slate-800 pb-5">
+              <div>
+                <h1 className="text-3xl md:text-4xl font-bold text-white flex items-center gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" strokeWidth="2" className="text-violet-500">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+                  </svg>
+                  Calibración <span className="text-violet-400 font-mono ml-1">Brújula</span>
+                </h1>
+                <p className="text-slate-400 text-sm mt-1">Calibración hard-iron del QMC5883 — inalámbrica por MQTT. Los offsets se guardan en la flash del ESP32.</p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded border text-xs font-mono
+                  ${mqttStatus?"border-green-500/30 bg-green-500/10 text-green-400":"border-red-500/30 bg-red-500/10 text-red-400"}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${mqttStatus?"bg-green-400 animate-pulse":"bg-red-500"}`}/>
+                  {mqttStatus?"MQTT OK":"SIN CONEXIÓN"}
+                </div>
+                <a href="test.html"
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-mono text-slate-300 transition-all flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+                  </svg>
+                  TEST DECK
+                </a>
+              </div>
+            </div>
+
+            {/* Status bar */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <div className="glass-card flex items-center justify-between py-3 px-4">
+                <span className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">Rumbo</span>
+                <span className="text-lg font-bold font-mono text-violet-400 tabular-nums">{heading!==null?`${heading}°`:"—"}</span>
+              </div>
+              <div className="glass-card flex items-center justify-between py-3 px-4">
+                <span className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">Estado</span>
+                <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded border ${badge.cls}`}>{badge.label}</span>
+              </div>
+              <div className="glass-card flex items-center justify-between py-3 px-4">
+                <span className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">Circularidad</span>
+                <span className={`text-lg font-bold font-mono tabular-nums ${qualColor}`}>{quality>0?`${quality}%`:"—"}</span>
+              </div>
+              <div className="glass-card flex items-center justify-between py-3 px-4">
+                <span className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">Spin</span>
+                <span className={`text-xs font-mono font-bold ${spinning?"text-violet-400 animate-pulse":"text-slate-600"}`}>
+                  {spinning?(spinning==="right"?"GIRO →":"← GIRO"):"PARADO"}
+                </span>
+              </div>
+            </div>
+
+            {/* Main grid */}
+            <div className="grid md:grid-cols-5 gap-6">
+
+              {/* Left: steps */}
+              <div className="md:col-span-2 space-y-2.5">
+                <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-3">Guía paso a paso</p>
+
+                <Step num={1} state={stepState(1)}
+                  title="Prepara el terreno"
+                  desc="Coloca el rover sobre superficie plana, alejado ≥50 cm de objetos metálicos. Los motores pueden estar encendidos — calibras en el entorno magnético real."/>
+
+                <Step num={2} state={stepState(2)}
+                  title='Pulsa "Iniciar calibración"'
+                  desc="El ESP32 comienza a registrar los valores mínimos y máximos del magnetómetro. Cada lectura desde ahora alimenta la calibración."/>
+
+                <Step num={3} state={stepState(3)}
+                  title="Mantén pulsado SPIN"
+                  desc="Usa SPIN DERECHA o IZQUIERDA para girar el rover sobre sí mismo. Haz al menos 3 vueltas completas a velocidad suave. Observa los datos actualizándose."/>
+
+                <Step num={4} state={stepState(4)}
+                  title='Circularidad ≥ 80%'
+                  desc="Mide si los ejes X e Y tienen rangos similares — señal de una vuelta completa. Cuando llegue al 80%+ y los valores se estabilicen, estás listo."/>
+
+                <Step num={5} state={stepState(5)}
+                  title='Pulsa "Guardar y detener"'
+                  desc="Los offsets se guardan en la flash del ESP32 y se aplican inmediatamente. Sin reflashear. Verifica el heading en la brújula."/>
+
+                <div className="mt-2 p-3.5 rounded border border-violet-900/30 bg-violet-950/20">
+                  <p className="text-[10px] font-mono text-violet-600 uppercase tracking-widest mb-1.5">¿Por qué usar SPIN?</p>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Los motores en marcha generan su propio campo magnético. Calibrar con ellos{" "}
+                    <span className="text-slate-400">activos a plena potencia</span> compensa exactamente
+                    esa interferencia — el entorno en que el rover siempre navegará. Mucho mejor que girar
+                    el chasis a mano con los motores parados.
+                  </p>
+                </div>
+              </div>
+
+              {/* Right: control */}
+              <div className="md:col-span-3 space-y-4">
+
+                {/* Compass + buttons */}
+                <div className="glass-card">
+                  <div className="flex flex-col sm:flex-row gap-6 items-center">
+                    <Compass heading={heading}/>
+                    <div className="flex-1 space-y-3 w-full">
+                      <button onClick={startCal}
+                        disabled={!mqttStatus||calStatus==="CALIBRANDO"}
+                        className="w-full py-3.5 rounded border-2 font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2
+                          disabled:opacity-30 disabled:cursor-not-allowed
+                          enabled:border-violet-500 enabled:bg-violet-700 enabled:hover:bg-violet-600 enabled:text-white
+                          enabled:shadow-lg enabled:shadow-violet-950/40 enabled:active:scale-[0.98]">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <circle cx="12" cy="12" r="10"/>
+                          <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+                        </svg>
+                        INICIAR CALIBRACIÓN
+                      </button>
+
+                      <button onClick={stopCal}
+                        disabled={!mqttStatus||calStatus!=="CALIBRANDO"}
+                        className="w-full py-3.5 rounded border-2 font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2
+                          disabled:opacity-30 disabled:cursor-not-allowed
+                          enabled:border-green-500/50 enabled:bg-slate-800 enabled:hover:bg-green-900/30 enabled:text-green-400
+                          enabled:active:scale-[0.98]">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M9 11l3 3L22 4"/>
+                          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                        </svg>
+                        GUARDAR Y DETENER
+                      </button>
+
+                      {!mqttStatus && (
+                        <p className="text-[11px] text-red-500/70 font-mono text-center">Sin conexión MQTT — espera el badge verde</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Spin buttons */}
+                <div className="glass-card">
+                  <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-3">
+                    Rotación del rover — <span className="text-violet-600">mantén pulsado</span>
+                  </p>
+                  <div className="flex gap-3">
+                    <SpinBtn dir="left"  active={spinning} onStart={handleSpinStart} onEnd={doSpinEnd} disabled={spinDisabled}/>
+                    <SpinBtn dir="right" active={spinning} onStart={handleSpinStart} onEnd={doSpinEnd} disabled={spinDisabled}/>
+                  </div>
+                  {calStatus!=="CALIBRANDO"&&mqttStatus&&(
+                    <p className="text-[10px] text-amber-600/70 font-mono mt-2 text-center">
+                      Inicia la calibración antes de hacer spin
+                    </p>
+                  )}
+                </div>
+
+                {/* Live data */}
+                <div className="glass-card">
+                  <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-4">
+                    Lecturas del magnetómetro — tiempo real
+                  </p>
+                  <div className="grid grid-cols-2 gap-5">
+                    <DataAxis label="Eje X" min={calData.x_min} max={calData.x_max} refMax={refMax}/>
+                    <DataAxis label="Eje Y" min={calData.y_min} max={calData.y_max} refMax={refMax}/>
+                  </div>
+
+                  <div className="mt-5 pt-4 border-t border-slate-800">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">
+                        Circularidad <span className="text-slate-700">(objetivo ≥80%)</span>
+                      </span>
+                      <span className={`text-base font-bold font-mono tabular-nums ${qualColor}`}>
+                        {quality>0?`${quality}%`:"—"}
+                      </span>
+                    </div>
+                    <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{width:`${quality}%`}}/>
+                    </div>
+                    <div className="mt-1.5 text-[10px] font-mono text-right">
+                      {quality>=80
+                        ? <span className="text-green-500">✓ Calidad óptima — puedes detener</span>
+                        : quality>=50
+                          ? <span className="text-amber-500">Sigue girando...</span>
+                          : <span className="text-slate-700">{quality>0?"Pocos datos — haz más vueltas":"Sin datos aún"}</span>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Result */}
+                {calStatus==="COMPLETA"&&calResult&&(
+                  <div className="glass-card border-green-500/30 bg-green-950/10 animate-fadeInUp">
+                    <p className="text-[10px] font-mono text-green-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+                      </svg>
+                      Calibración guardada en flash del ESP32
+                    </p>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      {[["X OFFSET",calResult.x_offset],["Y OFFSET",calResult.y_offset]].map(([lbl,val])=>(
+                        <div key={lbl} className="bg-slate-900/80 rounded p-3 border border-slate-800">
+                          <p className="text-[10px] font-mono text-slate-500 mb-1">{lbl}</p>
+                          <p className="text-2xl font-bold font-mono text-green-300 tabular-nums">{val?.toFixed(1)}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-mono leading-relaxed">
+                      Los offsets se cargan en cada reinicio. Si Norte no marca ~0°, ajusta{" "}
+                      <span className="text-slate-400">HEADING_OFFSET</span> en{" "}
+                      <span className="text-slate-400">gps.ino</span>.
+                    </p>
+                  </div>
+                )}
+
+              </div>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App/>);
+  </script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# DuckDNS updater (generado)
+curl -fsS "https://www.duckdns.org/update?domains=${DDNS_DOMAIN}&token=${DDNS_TOKEN}&ip=" -o /var/log/ddns-rover.log

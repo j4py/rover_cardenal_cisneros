@@ -1,0 +1,338 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Infraestructura Detallada | Rover Perseverance</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../style.css" />
+    <style type="text/tailwindcss">
+      @layer utilities {
+        .code-block {
+          @apply font-mono bg-slate-800/50 px-1.5 py-0.5 rounded text-orange-400 text-sm border border-slate-700/50;
+        }
+        .reasoning {
+          @apply block text-sm italic text-slate-500 mt-1 ml-2 pl-2 border-l-2 border-slate-700;
+        }
+      }
+    </style>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
+    <script type="text/babel" src="../components/NavBar.js?v=2.2"></script> 
+  </head>
+  <body class="bg-slate-950 text-slate-200 font-sans min-h-screen selection:bg-orange-500/30">
+    <div id="root"></div>
+    <script type="text/babel">
+      function App() {
+        return (
+          <div className="flex flex-col min-h-screen">
+            <NavBar basePath="../" />
+            
+            <div className="max-w-4xl mx-auto px-4 py-8 md:py-12 w-full flex-1">
+              <header id="infraestructura" className="mb-12 border-b border-slate-800 pb-8 animate-fadeInDown">
+                <h1 className="text-4xl md:text-5xl font-bold text-white mb-3 tracking-tight">
+                    Infraestructura <span className="text-orange-500">Técnica</span>
+                </h1>
+                <p className="text-lg text-slate-400 max-w-2xl">
+                  Documentación sobre el montaje de la red, configuración del servidor 
+                  y despliegue de la plataforma de control.
+                </p>
+              </header>
+
+              <div className="space-y-12 animate-fadeInUp">
+                <section id="hardware" className="relative pl-6 border-l-2 border-slate-800 hover:border-orange-500 transition-colors duration-300">
+                  <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-3">
+                     Hardware y Sistema Operativo
+                  </h2>
+                  <p className="text-slate-400 mb-4">
+                    Se utiliza un PC de bajos recursos reutilizado como servidor permanente.
+                  </p>
+                  <ul className="space-y-3">
+                    <li className="flex flex-col">
+                      <span className="text-slate-300"><strong className="text-white">Sistema Operativo:</strong> Ubuntu Server.</span>
+                      <span className="reasoning">Se prescindió de la interfaz gráfica (GUI) para maximizar el rendimiento y la estabilidad en hardware antiguo.</span>
+                    </li>
+                  </ul>
+                </section>
+
+                <section id="broker" className="relative pl-6 border-l-2 border-slate-800 hover:border-orange-500 transition-colors duration-300">
+                  <h2 className="text-2xl font-bold text-white mb-4">
+                    Broker MQTT (Mosquitto)
+                  </h2>
+                  <p className="text-slate-400 mb-6">Núcleo de comunicaciones del Rover.</p>
+
+                  <div className="bg-slate-900/50 rounded p-6 border border-slate-800 mb-6">
+                    <h3 className="text-lg font-semibold text-orange-400 mb-4">Configuración de Puertos</h3>
+                    <ul className="space-y-2 text-slate-300">
+                      <li className="flex items-start gap-2">
+                        <span className="text-orange-500 mt-1">•</span>
+                        <span><strong>Puerto 1883:</strong> Protocolo MQTT estándar. Comunicación directa Rover ↔ Mando.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-orange-500 mt-1">•</span>
+                        <span><strong>Puerto 9001:</strong> WebSockets para la interfaz web.</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-slate-900/50 rounded p-6 border border-slate-800">
+                    <h3 className="text-lg font-semibold text-orange-400 mb-4">Seguridad y Accesibilidad</h3>
+                    <ul className="space-y-4">
+                      <li>
+                        <div className="text-slate-300"><strong>Autenticación:</strong> Acceso anónimo desactivado. Se requiere usuario/contraseña.</div>
+                        <div className="text-sm text-slate-500 mt-1 ml-4">Archivo <span className="code-block">passwd</span> cifrado.</div>
+                      </li>
+                      <li>
+                        <div className="text-slate-300"><strong>Listener:</strong> Configurado en <span className="code-block">0.0.0.0</span>.</div>
+                        <span className="reasoning">Para aceptar conexiones externas.</span>
+                      </li>
+                    </ul>
+                  </div>
+                </section>
+
+                <section id="red" className="relative pl-6 border-l-2 border-slate-800 hover:border-orange-500 transition-colors duration-300">
+                  <h2 className="text-2xl font-bold text-white mb-4">
+                    Red y Acceso Externo
+                  </h2>
+                  <ul className="space-y-6">
+                    <li>
+                      <div className="text-slate-300"><strong>IP Estática (LAN):</strong> Fijada en <span className="code-block">192.168.1.169</span>.</div>
+                      <span className="reasoning">Motivo: Evitar que el DHCP del router asigne una IP distinta tras un reinicio, lo que rompería las reglas de puertos.</span>
+                    </li>
+                    <li>
+                      <div className="text-slate-300"><strong>Port Forwarding (NAT):</strong></div>
+                      <p className="text-slate-400 mt-1">Reglas activas para redirigir tráfico externo de los puertos <strong>1883</strong> (MQTT), <strong>9001</strong> (WebSockets) y <strong>22</strong> (SSH) hacia la IP del servidor.</p>
+                    </li>
+                    <li>
+                      <div className="text-slate-300"><strong>Firewall (UFW):</strong></div>
+                      <p className="text-slate-400 mt-1">Apertura de puertos críticos:</p>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <span className="code-block">sudo ufw allow 1883</span>
+                        <span className="code-block">sudo ufw allow 9001</span>
+                        <span className="code-block">sudo ufw allow 22</span>
+                      </div>
+                    </li>
+                  </ul>
+                </section>
+
+                <section id="dns" className="relative pl-6 border-l-2 border-slate-800 hover:border-orange-500 transition-colors duration-300">
+                  <h2 className="text-2xl font-bold text-white mb-4">
+                     DNS Dinámico (No-IP)
+                  </h2>
+                  <p className="text-slate-400 mb-4">Solución para la IP pública dinámica.</p>
+                  <ul className="space-y-4">
+                    <li className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <strong className="text-white min-w-[100px]">Dominio:</strong>
+                      <span className="code-block">rover.example.com</span>
+                      <span className="text-xs text-slate-500 uppercase tracking-widest border border-slate-700 rounded px-2 py-0.5">Registro Tipo A</span>
+                    </li>
+                    <li className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <strong className="text-white min-w-[100px]">Cliente DUC:</strong>
+                      <span className="text-slate-300">Software <span className="code-block">noip2</span> compilado manualmente.</span>
+                    </li>
+                    <li className="flex flex-col">
+                      <div><strong className="text-white">Configuración:</strong> <span className="text-slate-300">Intervalo de actualización de 5 minutos.</span></div>
+                      <span className="reasoning">Motivo: Mantener la IP sincronizada sin saturar el servicio gratuito.</span>
+                    </li>
+                  </ul>
+                </section>
+
+                <section id="web" className="relative pl-6 border-l-2 border-slate-800 hover:border-orange-500 transition-colors duration-300">
+                  <h2 className="text-2xl font-bold text-white mb-4">
+                    Servidor Web
+                  </h2>
+                  <ul className="space-y-6">
+                    <li className="flex flex-col">
+                      <div><strong className="text-white">Software:</strong> <span className="text-slate-300">Nginx.</span></div>
+                      <span className="reasoning">Elegido sobre Apache por su menor consumo de memoria.</span>
+                    </li>
+                    <li className="flex flex-col">
+                      <div className="text-slate-300"><strong className="text-white">Instalación:</strong> <span className="code-block">sudo apt install nginx</span></div>
+                    </li>
+                    <li className="flex flex-col">
+                      <div className="text-slate-300"><strong className="text-white">Página Web:</strong> Puerto 80 abierto en UFW <span className="code-block">sudo ufw allow 80</span></div>
+                      <div className="space-y-2 mt-2">
+                          <span className="reasoning"><strong>Motivo:</strong> En primera instancia se decidió usar http para la web.</span>
+                          <span className="reasoning"><strong>Problema:</strong> Los navegadores móviles forzaban automáticamente la conexión a HTTPS (puerto 443) aunque escribieras "http://"</span>
+                          <span className="reasoning"><strong>Solución:</strong> Instalar certificado SSL.</span>
+                      </div>
+                    </li>
+                    <li className="flex flex-col">
+                       <div className="text-slate-300"><strong className="text-white">Instalación de certificado SSL:</strong> <span className="code-block">sudo apt install certbot python3-certbot-nginx</span></div>
+                       <span className="reasoning">Instalación de Certbot y el plugin para Nginx.</span>
+                    </li>
+                    <li className="flex flex-col">
+                       <div className="text-slate-300"><strong className="text-white">Configuración SSL:</strong> <span className="code-block">sudo certbot --nginx</span></div>
+                       <div className="space-y-1 mt-1">
+                           <span className="reasoning">Generación del certificado para el dominio rover.example.com.</span>
+                           <span className="reasoning">Configuración automática de Nginx para manejar el cifrado SSL.</span>
+                       </div>
+                    </li>
+                    <li className="flex flex-col">
+                       <div className="text-slate-300"><strong className="text-white">Página Web:</strong> Puerto 8443 abierto en UFW <span className="code-block">sudo ufw allow 8443</span></div>
+                       <span className="reasoning">Motivo: Movistar suele bloquear o reservar el puerto 443 para su propia gestión (servicios como "Conexión Segura" o administración remota del router).</span>
+                    </li>
+                  </ul>
+                </section>
+
+                <section id="seguridad" className="relative pl-6 border-l-2 border-slate-800 hover:border-red-500 transition-colors duration-300">
+                  <h2 className="text-2xl font-bold text-white mb-4">
+                    Seguridad y Acceso Remoto
+                  </h2>
+                  <p className="text-slate-400 mb-4">Protección del servidor tras la apertura del puerto 22 para administración externa.</p>
+                  
+                  <div className="bg-slate-900/50 rounded p-6 border border-slate-800 space-y-6">
+                    <div>
+                      <h3 className="text-lg font-semibold text-red-400 mb-3 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        Implementación de Fail2Ban
+                      </h3>
+                      <p className="text-slate-300 text-sm mb-4">
+                        Ante la necesidad de gestionar el servidor desde fuera de la red local, se habilitó el acceso SSH. Para mitigar ataques de fuerza bruta, se configuró Fail2Ban.
+                      </p>
+                      
+                      <ul className="space-y-4">
+                        <li className="flex flex-col">
+                          <div className="text-slate-300"><strong className="text-white">Instalación:</strong></div>
+                          <div className="mt-1">
+                            <span className="code-block">sudo apt install fail2ban</span>
+                          </div>
+                        </li>
+                        <li className="flex flex-col">
+                          <div className="text-slate-300"><strong className="text-white">Configuración personalizada:</strong></div>
+                          <span className="reasoning italic text-xs mb-2">Se crea un archivo de configuración local.</span>
+                          <div className="flex gap-2">
+                            <span className="code-block">sudo nano /etc/fail2ban/jail.local</span>
+                          </div>
+                        </li>
+                        <li className="flex flex-col">
+                          <div className="text-slate-300"><strong className="text-white">Activación del servicio:</strong></div>
+                          <div className="mt-1">
+                            <span className="code-block">sudo systemctl enable fail2ban</span>
+                            <span className="code-block ml-2">sudo systemctl start fail2ban</span>
+                          </div>
+                        </li>
+                        <li className="flex flex-col">
+                          <div className="text-slate-300"><strong className="text-white">Ver estado de los baneos:</strong></div>
+                          <div className="mt-1">
+                            <span className="code-block">sudo fail2ban-client status sshd</span>
+                          </div>
+                        </li>
+                      </ul>
+
+                      <h4 className="text-md font-semibold text-orange-400 mt-8 mb-3 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                        Automatización de Alertas mediante Email
+                      </h4>
+                      <p className="text-slate-300 text-sm mb-4">
+                        Para recibir notificaciones en tiempo real sobre bloqueos, se ha configurado un sistema de alertas mediante una cuenta de Gmail dedicada: <span className="code-block text-xs">proyectorover@gmail.com</span>.
+                      </p>
+
+                      <ul className="space-y-4">
+                        <li className="flex flex-col">
+                          <div className="text-slate-300"><strong className="text-white">Relay de Correo usando Postfix:</strong></div>
+                          <span className="reasoning italic text-xs mb-2">Instalación y configuración de Postfix para actuar como relay de Gmail.</span>
+                          <div className="flex flex-wrap gap-2">
+                            <span className="code-block">sudo apt install postfix libsasl2-modules bsd-mailx</span>
+                          </div>
+                        </li>
+                        <li className="flex flex-col">
+                          <div className="text-slate-300"><strong className="text-white">Autenticación Segura:</strong></div>
+                          <p className="text-xs text-slate-500 mt-1 mb-2">Se utiliza una <strong>Contraseña de Aplicación</strong> de Google para permitir la conexión SMTP sin comprometer la cuenta principal.</p>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400 min-w-[80px]">Crear archivo SASL:</span>
+                                <span className="code-block text-xs">sudo nano /etc/postfix/sasl_passwd</span>
+                            </div>
+                            <div className="bg-slate-950/50 p-3 rounded border border-slate-800/50">
+                            <code className="text-xs text-orange-300 font-mono">
+                                [smtp.gmail.com]:587 proyectorover@gmail.com:contraseña
+                            </code>
+                          </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400 min-w-[80px]">Actualizar configuración:</span>
+                                <span className="code-block text-xs">sudo postmap /etc/postfix/sasl_passwd</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400 min-w-[80px]">Configurar permisos:</span>
+                                <span className="code-block text-xs">sudo chmod 600 /etc/postfix/sasl_passwd</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400 min-w-[80px]">Reiniciar servicio:</span>
+                                <span className="code-block text-xs">sudo systemctl restart postfix</span>
+                            </div>
+                          </div>
+                        </li>
+                        <li className="flex flex-col">
+                          <div className="text-slate-300"><strong className="text-white">Vinculación con Fail2Ban:</strong></div>
+                          <p className="text-xs text-slate-500 mt-1 mb-2">Configuración final en <span className="code-block text-xs">jail.local</span> para disparar los correos:</p>
+                          <div className="bg-slate-950/50 p-3 rounded border border-slate-800/50">
+                            <code className="text-xs text-orange-300 font-mono">
+                                [DEFAULT]<br/>
+                                destemail = proyectorover@gmail.com<br/>
+                                sender = proyectorover@gmail.com<br/>
+                                action = %(action_mwl)s
+                            </code>
+                          </div>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </section>
+
+                <section id="flujo" className="relative pl-6 border-l-2 border-slate-800 hover:border-orange-500 transition-colors duration-300">
+                  <h2 className="text-2xl font-bold text-white mb-4">
+                    Flujo de Trabajo y Archivos
+                  </h2>
+                  
+                  <h3 className="text-xl font-bold text-orange-400 mb-4 mt-8">Método de Transferencia</h3>
+                  <ul className="space-y-4">
+                    <li className="flex flex-col">
+                      <div className="text-slate-300"><strong className="text-white">Herramienta:</strong> SSHFS-Win</div>
+                      <span className="reasoning">Instalación vía Winget:</span>
+                      <div className="pl-4 mt-1 space-y-2">
+                          <span className="reasoning">Motor WinFsp: <span className="code-block">winget install WinFsp.WinFsp</span></span>
+                          <span className="reasoning">SSHFS-Win: <span className="code-block">winget install SSHFS-Win.SSHFS-Win</span></span>
+                      </div>
+                    </li>
+
+                    <li className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <strong className="text-white">Ruta de Montaje:</strong>
+                      <span className="code-block">\\sshfs\oliver@192.168.1.169\..\..</span>
+                    </li>
+                    <li className="flex flex-col">
+                      <div><strong className="text-white">Ventaja:</strong> <span className="text-slate-300">Permite editar código directamente desde VS Code o el Explorador de Windows como si fuera una carpeta local.</span></div>
+                    </li>
+                  </ul>
+
+                  <h3 className="text-xl font-bold text-orange-400 mb-4 mt-8">Permisos de Directorio (/var/www/html)</h3>
+                  <p className="text-slate-400 mb-4">
+                     Para evitar editar como usuario <code className="bg-gray-800 text-orange-300 px-1 rounded">root</code>, se ajustaron los permisos del directorio web:
+                  </p>
+                  <ul className="space-y-4">
+                    <li className="text-slate-300">
+                      <strong className="text-white">Propietario:</strong> Cambiado a usuario 'oliver' <span className="code-block">chown -R oliver:oliver</span>.
+                    </li>
+                    <li className="text-slate-300">
+                      <strong className="text-white">Permisos:</strong> Lectura/Escritura <span className="code-block">chmod -R 775</span>.
+                    </li>
+                    <li className="text-slate-300">
+                      <strong className="text-white">Grupos:</strong> Usuario añadido al grupo www-data <span className="code-block">sudo usermod -aG www-data oliver</span> para compatibilidad con Nginx.
+                    </li>
+                  </ul>
+                </section>
+
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<App />);
+    </script>
+  </body>
+</html>
+

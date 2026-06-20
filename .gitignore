@@ -1,0 +1,40 @@
+﻿# ── Claude Code / herramientas de desarrollo ──────────────────────────────────
+.claude/
+.gstack/
+.superpowers/
+settings.local.json
+browse-audit.jsonl
+browse.json
+claude-available.json
+terminal-agent-pid
+terminal-internal-token
+terminal-port
+brainstorm/
+
+# ── Sistema operativo ──────────────────────────────────────────────────────────
+desktop.ini
+Thumbs.db
+.DS_Store
+
+# ── Arduino IDE / compilación ─────────────────────────────────────────────────
+build/
+*.elf
+*.hex
+*.bin
+*.map
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+
+# ── Despliegue (config generada con secretos reales) ──────────────────────────
+mqtt.js
+deploy/rover-deploy.env
+deploy/generated/
+arduino_secrets.h
+
+# ── Material privado (no publicar) ────────────────────────────────────────────
+_notas/
+
+# ── Proyecto PlatformIO de la cámara (pesado, con credenciales; no publicar) ──
+ESP32/Camera_Marcelo/Camera web roverps/
+*.zip

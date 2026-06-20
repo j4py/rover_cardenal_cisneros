@@ -1,0 +1,745 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manual de Uso | Rover Perseverance</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../style.css" />
+    <style>
+      @page { size: A4; margin: 2cm; }
+      @media print {
+        html { font-size: 12pt !important; }
+        nav, .no-print { display: none !important; }
+        body { background: white !important; color: #1e293b !important; width: 100% !important; }
+        .max-w-4xl { max-width: none !important; }
+        * { color: #1e293b !important; background: white !important; box-shadow: none !important; }
+        .print-break { page-break-before: always; }
+        .print-section { break-before: page; page-break-before: always; }
+        .text-orange-400, .text-orange-300 { color: #c2410c !important; }
+        .text-slate-400, .text-slate-500, .text-slate-600 { color: #475569 !important; }
+        .bg-slate-900, .bg-slate-800, .bg-slate-950,
+        .bg-slate-900\/50, .bg-slate-900\/30, .bg-slate-900\/80 { background: #f8fafc !important; }
+        .border-slate-800, .border-slate-700 { border-color: #cbd5e1 !important; }
+        pre, code { background: #f1f5f9 !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; }
+        pre { white-space: pre-wrap !important; overflow-wrap: anywhere !important; overflow: visible !important; }
+        .overflow-x-auto { overflow: visible !important; }
+        .problem-body { display: grid !important; }
+        .problem-toggle-arrow { display: none !important; }
+      }
+    </style>
+    <script type="text/babel" src="../components/NavBar.js?v=2.2"></script>
+  </head>
+  <body class="bg-slate-950 text-slate-200 font-sans min-h-screen selection:bg-orange-500/30">
+    <div id="root"></div>
+
+    <script type="text/babel">
+      function Section({ n, title, children }) {
+        return (
+          <section className="scroll-mt-20 print-section">
+            <h2 className="text-xl font-bold text-white mb-5 flex items-center gap-3 border-b border-slate-800 pb-3">
+              <span className="text-orange-400 font-black font-mono text-lg w-8 shrink-0">{n}.</span>
+              {title}
+            </h2>
+            {children}
+          </section>
+        );
+      }
+
+      function SubSection({ title, children }) {
+        return (
+          <div className="mb-5">
+            <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <span className="w-1 h-4 bg-orange-500/50 rounded-sm inline-block" />
+              {title}
+            </h3>
+            {children}
+          </div>
+        );
+      }
+
+      const TOOLTIPS = {
+        // — Comunicación —
+        mqtt:       { title: "¿Qué es un broker MQTT?",           body: "MQTT es un protocolo de mensajería ligero para dispositivos IoT. El broker actúa de intermediario: los ESP32 publican mensajes en «tópicos» y la interfaz web los recibe suscribiéndose a esos mismos tópicos. Mosquitto es la implementación open-source más extendida, desarrollada por Eclipse." },
+        websocket:  { title: "¿Qué es WebSocket?",                body: "WebSocket es un protocolo de comunicación bidireccional full-duplex sobre TCP. A diferencia de HTTP, la conexión permanece abierta, permitiendo enviar y recibir datos en tiempo real sin peticiones repetidas. Se usa aquí para el stream de vídeo y para MQTT desde el navegador." },
+        uart:       { title: "¿Qué es UART?",                     body: "UART (Universal Asynchronous Receiver-Transmitter) es un protocolo de comunicación serie punto a punto. Solo requiere dos hilos (TX y RX). En el rover se usa para comunicar el ESP32 con el GPS NEO-6M (UART2) y el driver TMC2209." },
+        i2c:        { title: "¿Qué es I2C?",                      body: "I2C (Inter-Integrated Circuit) es un protocolo serie que permite conectar múltiples dispositivos con solo 2 hilos (SDA y SCL). En el rover se usa para leer la brújula magnetométrica QMC5883." },
+        nmea:       { title: "¿Qué es NMEA?",                     body: "NMEA 0183 es el protocolo estándar de la industria náutica para transmitir datos de GPS en texto plano. Las tramas más usadas son $GPRMC (posición y velocidad) y $GPGGA (altitud y calidad de fix). El módulo NEO-6M las envía por UART a 9600 bps." },
+        // — Hardware del rover —
+        esp32:      { title: "¿Qué es el ESP32?",                 body: "El ESP32 es un microcontrolador de Espressif con WiFi y Bluetooth integrados, núcleo Xtensa LX6 a 240 MHz, 520 KB de RAM y 4 MB de flash. Es el cerebro de cada subsistema del rover: tracción, cámara y GPS." },
+        motordc:    { title: "¿Qué es un motor DC?",              body: "Un motor de corriente continua (DC) gira proporcionalmente al voltaje aplicado. En el rover, los 6 motores DC están controlados por drivers DRV8871H que reciben señales PWM del ESP32 para regular velocidad y dirección de forma independiente en cada rueda." },
+        "6wd":      { title: "¿Qué es la tracción 6WD?",          body: "6WD (6 Wheel Drive) significa tracción en las 6 ruedas simultáneamente. Cada rueda tiene su propio motor DC, lo que da máxima tracción en terrenos irregulares sin diferencial mecánico ni puntos de fallo únicos." },
+        servo:      { title: "¿Qué es un servomotor?",            body: "Un servomotor es un actuador que gira a un ángulo preciso controlado por señal PWM. El rover usa servos para la dirección de las ruedas (geometría Ackermann) y para el movimiento de tilt (inclinación vertical) de la cámara." },
+        ackermann:  { title: "¿Qué es la geometría Ackermann?",   body: "La geometría Ackermann es un principio de dirección que asegura que todas las ruedas giren sobre círculos concéntricos en una curva. Evita el deslizamiento lateral calculando ángulos de giro distintos para las ruedas interior y exterior en cada curva." },
+        stepper:    { title: "¿Qué es un motor stepper NEMA 17?", body: "Un motor paso a paso (stepper) se mueve en incrementos precisos sin necesidad de encoder. NEMA 17 es el estándar de montura (42×42 mm). En el rover controla el pan (rotación horizontal) de la cámara con la ayuda del driver TMC2209." },
+        tmc2209:    { title: "¿Qué es el driver TMC2209?",        body: "Driver de motor paso a paso de Trinamic. Ofrece control de microstep (hasta 256), modo silencioso StealthChop, interpolación de pasos y protección térmica. Se comunica con el ESP32 vía UART para ajustar corriente y velocidad." },
+        pan:        { title: "¿Qué es el movimiento pan?",        body: "Pan es la rotación horizontal de la cámara (izquierda/derecha). En el rover lo realiza el motor stepper NEMA 17 controlado por el driver TMC2209, con pasos muy precisos para apuntar la cámara." },
+        tilt:       { title: "¿Qué es el movimiento tilt?",       body: "Tilt es la inclinación vertical de la cámara (arriba/abajo). En el rover lo realiza un servo estándar. Junto con el pan del stepper, forman el gimbal de 2 ejes de la cámara." },
+        gimbal:     { title: "¿Qué es un gimbal?",                body: "Un gimbal es un sistema de montaje con motores o servos que permite apuntar o estabilizar una cámara en múltiples ejes. En el rover tiene 2 ejes: pan (stepper NEMA 17, rotación horizontal) y tilt (servo, inclinación vertical)." },
+        lipo3s:     { title: "¿Qué es una batería LiPo 3S?",      body: "LiPo (Litio Polímero) 3S = 3 celdas en serie. Voltaje nominal 11.1 V (3.7 V × 3), máximo 12.6 V (4.2 V × 3). Alta densidad energética y capacidad de descarga rápida, ideal para robótica. Requiere cargador específico y no debe descargarse por debajo de 9 V (3 V/celda)." },
+        // — Sensores —
+        ov2640:     { title: "¿Qué es el sensor OV2640?",         body: "Sensor de imagen CMOS de 2 megapíxeles de OmniVision. Integrado en el módulo Freenove ESP32-S3, soporta compresión JPEG por hardware, lo que reduce la carga de CPU al comprimir cada fotograma antes de enviarlo por WiFi." },
+        fps:        { title: "¿Qué son los FPS?",                 body: "FPS (Frames Per Second) es la cantidad de imágenes por segundo que transmite la cámara. A 20 FPS el vídeo se percibe fluido. El límite lo imponen el ancho de banda WiFi y la velocidad de compresión JPEG del sensor OV2640." },
+        neo6m:      { title: "¿Qué es el GPS NEO-6M?",            body: "Módulo receptor GPS de u-blox. Recibe señales de satélites GPS y las convierte en tramas NMEA (posición, velocidad, hora) a través de UART a 9600 bps. En exteriores con cielo despejado tarda entre 2 y 60 segundos en obtener fix." },
+        qmc5883:    { title: "¿Qué es el QMC5883?",               body: "Sensor magnetométrico de 3 ejes de QST. Mide el campo magnético terrestre para determinar el heading (orientación) del rover respecto al norte magnético. Se comunica por I2C. Es fundamental para el algoritmo de navegación autónoma." },
+        heading:    { title: "¿Qué es el heading?",               body: "El heading es el ángulo de orientación del rover respecto al norte magnético (0°–360°). La brújula QMC5883 lo proporciona en tiempo real. El algoritmo de navegación autónoma lo compara con el rumbo al destino GPS para corregir la trayectoria." },
+        gpsfix:     { title: "¿Qué es un GPS fix?",               body: "Un fix (fijación GPS) es cuando el módulo ha recibido señal de suficientes satélites (mínimo 3–4) para calcular una posición con precisión. Sin fix las coordenadas no son válidas. En exteriores con cielo despejado el first fix tarda entre 2 y 60 segundos." },
+        telemetria: { title: "¿Qué es la telemetría?",            body: "Telemetría es la transmisión automática de datos de monitorización desde el rover hacia la base de control. En este proyecto incluye el voltaje de la batería LiPo, publicado vía MQTT cada segundo y mostrado en el panel del Centro de Mando." },
+        // — Software —
+        ota:        { title: "¿Qué es OTA?",                      body: "OTA (Over The Air) es la actualización del firmware de un microcontrolador de forma inalámbrica, sin cable USB. El ESP32 expone un endpoint /update (formulario web) o escucha conexiones ArduinoOTA desde el IDE. Permite flashear el rover sin desmontarlo." },
+        react:      { title: "¿Qué es React 18?",                 body: "React 18 es la librería de interfaces de usuario de Meta. Introduce renderizado concurrente y el nuevo API createRoot. Es la versión sobre la que está construido el Centro de Mando." },
+        umd:        { title: "¿Qué es UMD (sin bundler)?",        body: "UMD (Universal Module Definition) es un formato que permite cargar React directamente en el navegador con una etiqueta <script>, sin Webpack ni Vite. No hay paso de compilación: simplifica el despliegue en cualquier servidor web estático." },
+        tailwind:   { title: "¿Qué es TailwindCSS?",             body: "TailwindCSS es un framework CSS de utilidades atómicas. En lugar de escribir CSS propio, se aplican clases predefinidas en el HTML (ej. bg-slate-900, text-orange-400). Solo genera el CSS que se usa, resultando en hojas de estilo muy pequeñas." },
+        cdn:        { title: "¿Qué es un CDN?",                   body: "CDN (Content Delivery Network) es una red de servidores distribuidos globalmente que sirven archivos estáticos desde el nodo geográficamente más cercano al usuario. Aquí se usa para cargar React, Babel y TailwindCSS sin instalar nada en el servidor." },
+        cloudflare: { title: "¿Qué es un túnel Cloudflare?",      body: "Cloudflare Tunnel (cloudflared) crea una conexión saliente cifrada desde el servidor hacia la red de Cloudflare. Permite exponer servicios en Internet con dominio propio sin abrir puertos en el router ni necesitar IP pública fija." },
+        leaflet:    { title: "¿Qué es Leaflet.js?",               body: "Leaflet.js es una librería JavaScript open-source para mapas interactivos. Usa tiles de OpenStreetMap. En el Centro de Mando muestra la posición GPS del rover en tiempo real y permite marcar coordenadas de destino para el modo autónomo." },
+        // — Infraestructura —
+        ubuntu:     { title: "¿Qué es Ubuntu Server?",            body: "Ubuntu Server es una distribución Linux de Canonical orientada a servidores. En este proyecto aloja el broker Mosquitto, el proxy Nginx, el proxy de vídeo Python y el túnel Cloudflare, todo corriendo como servicios systemd." },
+        nginx:      { title: "¿Qué es Nginx?",                    body: "Nginx es un servidor web y proxy inverso de alto rendimiento. En este proyecto sirve los archivos estáticos de la interfaz web y actúa como proxy WebSocket para el stream de vídeo entre la cámara ESP32 y los navegadores clientes." },
+        arduino:    { title: "¿Qué es Arduino IDE?",              body: "Arduino IDE 2.x es el entorno de desarrollo oficial para programar microcontroladores. Incluye compilador C++, cargador de firmware vía USB y OTA, y el Library Manager para instalar librerías de terceros. Soporta ESP32 mediante el paquete de Espressif." },
+      };
+
+      function Tooltip({ id, children }) {
+        const [visible, setVisible] = React.useState(false);
+        const tip = TOOLTIPS[id];
+        return (
+          <span className="relative inline-block">
+            <span
+              onMouseEnter={() => setVisible(true)}
+              onMouseLeave={() => setVisible(false)}
+              className="cursor-help text-slate-200 font-bold"
+            >{children}</span>
+            {visible && tip && (
+              <span className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 bg-slate-800 border border-slate-700 rounded p-3 text-xs text-slate-300 leading-relaxed shadow-xl pointer-events-none">
+                <span className="block font-bold text-orange-400 mb-1">{tip.title}</span>
+                <span>{tip.body}</span>
+                <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-700" />
+              </span>
+            )}
+          </span>
+        );
+      }
+
+      function Problem({ n, area, symptom, cause, fix }) {
+        const [open, setOpen] = React.useState(false);
+        return (
+          <div className="border border-slate-800 rounded overflow-hidden">
+            <button onClick={() => setOpen(o => !o)} className="w-full flex items-start gap-3 px-4 py-3 bg-slate-900/80 hover:bg-slate-900 transition-colors text-left">
+              <span className="text-[10px] font-black text-slate-600 font-mono mt-0.5 shrink-0 w-7">P-{n}</span>
+              <span className="text-[10px] font-bold text-orange-400 uppercase tracking-widest bg-orange-500/10 border border-orange-500/20 rounded-sm px-2 py-0.5 shrink-0 whitespace-nowrap">{area}</span>
+              <span className="text-sm text-slate-300 flex-1 leading-snug">{symptom}</span>
+              <span className="problem-toggle-arrow text-slate-600 text-[10px] shrink-0 mt-1 ml-2">{open ? "▲" : "▼"}</span>
+            </button>
+            <div className={`problem-body grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-800 border-t border-slate-800${open ? "" : " hidden"}`}>
+              <div className="p-4">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Causa</p>
+                <div className="text-xs text-slate-400 leading-relaxed space-y-1">{cause}</div>
+              </div>
+              <div className="p-4 bg-slate-900/30">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Solución</p>
+                <div className="text-xs text-slate-400 leading-relaxed space-y-1">{fix}</div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      function Step({ n, title, items }) {
+        return (
+          <div className="flex gap-4 pb-5">
+            <div className="flex flex-col items-center">
+              <div className="w-7 h-7 rounded-sm bg-orange-500/20 border border-orange-500/40 flex items-center justify-center shrink-0">
+                <span className="text-orange-400 font-black text-xs">{n}</span>
+              </div>
+              <div className="flex-1 w-px bg-slate-800 mt-2" />
+            </div>
+            <div className="flex-1 pb-1">
+              <p className="text-sm font-bold text-slate-200 mb-2">{title}</p>
+              <ol className="space-y-1.5">
+                {items.map((item, i) => (
+                  <li key={i} className="flex gap-2 text-xs text-slate-400 leading-relaxed">
+                    <span className="text-slate-600 shrink-0 font-mono">{i + 1}.</span>
+                    <span dangerouslySetInnerHTML={{ __html: item }} />
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        );
+      }
+
+      function App() {
+        return (
+          <div className="flex flex-col min-h-screen">
+            <NavBar basePath="../" />
+
+            <div className="max-w-4xl mx-auto px-4 py-10 w-full flex-1">
+
+              <header className="mb-10 border-b border-slate-800 pb-8">
+                <div className="flex items-center gap-3 mb-3 no-print">
+                  <span className="text-[11px] font-bold text-orange-400 uppercase tracking-widest bg-orange-500/10 border border-orange-500/20 rounded-sm px-3 py-1">Documentación · Manual de Uso</span>
+                  <button
+                    onClick={() => window.print()}
+                    className="text-[11px] text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-sm px-3 py-1 transition-colors flex items-center gap-1.5"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    Exportar PDF
+                  </button>
+                </div>
+                <h1 className="text-4xl md:text-5xl font-black text-white mb-2 tracking-tight">
+                  Rover Perseverance
+                </h1>
+                <p className="text-lg text-orange-400 font-semibold mb-1">Proyecto Intermodular 2025/26</p>
+                <p className="text-sm text-slate-500">IES Cardenal Cisneros · 2º SMR · Oliver · Marcelo · Juan José · Marc</p>
+
+                {/* Índice */}
+                <nav className="mt-6 bg-slate-900/50 border border-slate-800 rounded p-4 no-print">
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">Índice</p>
+                  <ol className="space-y-1">
+                    {[
+                      "Descripción General",
+                      "Estructura del Proyecto",
+                      "Requisitos Previos",
+                      "Cómo poner en marcha el sistema",
+                      "Manual de Uso Rápido",
+                      "Solución de Problemas",
+                      "Registro Técnico de Problemas",
+                    ].map((t, i) => (
+                      <li key={i} className="text-xs text-slate-400">
+                        <span className="text-orange-400 font-mono mr-2">{i + 1}.</span>{t}
+                      </li>
+                    ))}
+                  </ol>
+                </nav>
+              </header>
+
+              <div className="space-y-12">
+
+                {/* 1. Descripción General */}
+                <Section n="1" title="Descripción General">
+                  <div className="space-y-3 text-sm text-slate-400 leading-relaxed">
+                    <p>
+                      El <strong className="text-slate-200">Rover Perseverance</strong> es un vehículo todo-terreno de 6 ruedas motrices diseñado, construido y programado íntegramente por alumnos de 2º SMR como proyecto intermodular del curso 2025/2026.
+                    </p>
+                    <p>El sistema se divide en <strong className="text-slate-200">tres <Tooltip id="esp32">ESP32</Tooltip> independientes</strong>, cada uno con responsabilidad propia:</p>
+                    <div className="space-y-2 pl-1">
+                      {[
+                        {
+                          name: "Mars_Rover.ino",
+                          desc: <>Firmware principal. Controla los 6 <Tooltip id="motordc">motores DC</Tooltip> (<Tooltip id="6wd">tracción 6WD</Tooltip>), los 4 <Tooltip id="servo">servos</Tooltip> de dirección (<Tooltip id="ackermann">geometría Ackermann</Tooltip>), el <Tooltip id="stepper">stepper NEMA 17</Tooltip> con driver <Tooltip id="tmc2209">TMC2209</Tooltip> (<Tooltip id="pan">pan</Tooltip> de cámara) y el servo de <Tooltip id="tilt">tilt</Tooltip>. Se conecta al broker MQTT y publica <Tooltip id="telemetria">telemetría</Tooltip> de batería cada segundo. Soporta actualización <Tooltip id="ota">OTA</Tooltip>.</>,
+                        },
+                        {
+                          name: "Camera_Marcelo.ino",
+                          desc: <>Firmware de cámara. Captura vídeo JPEG a ~20 <Tooltip id="fps">FPS</Tooltip> con la cámara <Tooltip id="ov2640">OV2640</Tooltip> del módulo Freenove ESP32-S3 y lo transmite en binario vía <Tooltip id="websocket">WebSocket</Tooltip> al proxy de vídeo del servidor.</>,
+                        },
+                        {
+                          name: "gps.ino",
+                          desc: <>Firmware de navegación. Lee el módulo <Tooltip id="neo6m">GPS NEO-6M</Tooltip> (<Tooltip id="nmea">NMEA</Tooltip>, <Tooltip id="uart">UART2</Tooltip>) y la brújula magnetométrica <Tooltip id="qmc5883">QMC5883</Tooltip> (<Tooltip id="i2c">I2C</Tooltip>). Publica posición y <Tooltip id="heading">heading</Tooltip> en tiempo real y ejecuta un algoritmo de navegación autónoma hacia coordenadas objetivo enviadas por MQTT.</>,
+                        },
+                      ].map(f => (
+                        <div key={f.name} className="flex gap-3 p-3 bg-slate-900/50 border border-slate-800 rounded">
+                          <span className="text-orange-400 shrink-0 mt-0.5">▸</span>
+                          <p><strong className="text-slate-200 font-mono text-xs">{f.name}</strong> — {f.desc}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p>
+                      Toda la comunicación entre los ESP32 y la interfaz web pasa por un <Tooltip id="mqtt">broker MQTT Mosquitto</Tooltip> alojado en servidor propio, accesible globalmente a través de un <Tooltip id="cloudflare">túnel Cloudflare</Tooltip> sin abrir puertos en el router.
+                    </p>
+                    <p>
+                      La interfaz web (<strong className="text-slate-200">Centro de Mando</strong>) está construida con <Tooltip id="react">React 18</Tooltip> (<Tooltip id="umd">UMD, sin bundler</Tooltip>) y <Tooltip id="tailwind">TailwindCSS</Tooltip> vía <Tooltip id="cdn">CDN</Tooltip>, sirviendo como panel de control desde cualquier navegador y dispositivo.
+                    </p>
+                  </div>
+                </Section>
+
+                {/* 2. Estructura del Proyecto */}
+                <Section n="2" title="Estructura del Proyecto">
+                  <div className="bg-slate-900 border border-slate-800 rounded p-4 overflow-x-auto">
+                    <pre className="text-xs font-mono text-slate-400 leading-relaxed">{`Rover/
+├── index.html          → Portada: hero, specs, equipo
+├── control.html        → Centro de Mando (joystick, cámara, GPS, telemetría)
+├── test.html           → Test Deck (prueba individual de motores y servos)
+├── components/
+│   └── NavBar.js       → Mega-menú React unificado (v2.0)
+├── hardware/
+│   ├── traccion.html   → Tracción 6WD: motores DC, drivers DRV8871H
+│   ├── electronica.html→ ESP32 y electrónica de control
+│   ├── energia.html    → Sistema de alimentación LiPo 3S
+│   └── conexiones.html → Diagrama interactivo de pines ESP32
+├── software/
+│   ├── firmware.html   → Visor de los 3 .ino con syntax highlighting
+│   ├── mqtt.html       → Lógica de mensajería MQTT y tópicos
+│   ├── infraestructura.html → Red, Nginx, Cloudflare, Fail2Ban
+│   └── tecnologias.html→ Stack tecnológico usado
+├── sensores/
+│   ├── gps.html        → GPS NEO-6M, brújula QMC5883, navegación autónoma
+│   ├── camara.html     → Cámara OV2640, gimbal, streaming WebSocket
+│   └── lidar.html      → Sensor LiDAR (integración pendiente)
+├── docs/
+│   └── guia.html       → Este manual (exportable a PDF)
+└── ESP32/
+    ├── Mars_Rover.ino
+    ├── gps.ino
+    └── Camera_Marcelo/Camera_Marcelo.ino`}</pre>
+                  </div>
+                </Section>
+
+                {/* 3. Requisitos Previos */}
+                <Section n="3" title="Requisitos Previos">
+                  <div className="space-y-5">
+                    <SubSection title="Para el servidor">
+                      <div className="bg-slate-900/50 border border-slate-800 rounded p-4 space-y-2 text-sm text-slate-400">
+                        <p><Tooltip id="ubuntu"><strong className="text-slate-200">Ubuntu Server</strong></Tooltip> con los siguientes servicios activos:</p>
+                        <ul className="space-y-1 pl-4">
+                          {[
+                            ["mosquitto", <><Tooltip id="mqtt">broker MQTT</Tooltip> en el puerto 1883 (TCP) y 9001 (<Tooltip id="websocket">WebSockets</Tooltip>)</>],
+                            ["nginx",     <><Tooltip id="nginx">proxy inverso</Tooltip> para WebSockets y servidor web</>],
+                            ["python3",   "ejecutando video_proxy.py (puerto 9002)"],
+                          ].map(([cmd, desc]) => (
+                            <li key={cmd} className="flex gap-2">
+                              <span className="text-orange-400 shrink-0">·</span>
+                              <span><code className="text-xs bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">{cmd}</code> — {desc}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="pt-1"><Tooltip id="cloudflare"><strong className="text-slate-200">Cloudflare Tunnel</strong></Tooltip> activo con los dominios configurados:</p>
+                        <ul className="space-y-1 pl-4">
+                          {[
+                            ["rover.example.com", "interfaz web"],
+                            ["direct.example.com", "broker MQTT directo (puerto 1883)"],
+                            ["video.example.com", "proxy de vídeo (puerto 9002)"],
+                          ].map(([domain, desc]) => (
+                            <li key={domain} className="flex gap-2">
+                              <span className="text-orange-400 shrink-0">·</span>
+                              <span><code className="text-xs bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">{domain}</code> → {desc}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </SubSection>
+
+                    <SubSection title="Para los ESP32">
+                      <div className="bg-slate-900/50 border border-slate-800 rounded p-4 text-sm text-slate-400 space-y-2">
+                        <p><Tooltip id="arduino"><strong className="text-slate-200">Arduino IDE</strong></Tooltip> 2.x con soporte para <Tooltip id="esp32">ESP32</Tooltip> (Espressif ESP32 Board Package)</p>
+                        <p>Librerías instaladas (Arduino Library Manager):</p>
+                        <ul className="space-y-1 pl-4">
+                          {[
+                            ["AccelStepper, ServoEasing, PubSubClient, ArduinoJson", "Mars_Rover.ino"],
+                            ["WebSocketsClient, esp_camera.h", "Camera_Marcelo.ino"],
+                            ["TinyGPS++, MechaQMC5883", "gps.ino"],
+                          ].map(([libs, fw]) => (
+                            <li key={fw} className="flex gap-2 text-xs">
+                              <span className="text-orange-400 shrink-0">·</span>
+                              <span><code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">{libs}</code> <span className="text-slate-600">({fw})</span></span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </SubSection>
+
+                    <SubSection title="Para el operador">
+                      <div className="bg-slate-900/50 border border-slate-800 rounded p-4 text-sm text-slate-400 space-y-1">
+                        <p>· Navegador web moderno (Chrome 90+, Firefox 88+, Edge 90+, Safari 15+)</p>
+                        <p>· Conexión a Internet</p>
+                      </div>
+                    </SubSection>
+                  </div>
+                </Section>
+
+                {/* 4. Cómo poner en marcha */}
+                <Section n="4" title="Cómo poner en marcha el sistema">
+                  <div>
+                    <Step n="1" title="Flashear los ESP32" items={[
+                      "Abre cada <code class='text-xs bg-slate-800 px-1 rounded text-slate-300'>.ino</code> en Arduino IDE desde la carpeta <code class='text-xs bg-slate-800 px-1 rounded text-slate-300'>ESP32/</code>.",
+                      "Selecciona la placa correcta: <code class='text-xs bg-slate-800 px-1 rounded text-slate-300'>Mars_Rover.ino</code> y <code class='text-xs bg-slate-800 px-1 rounded text-slate-300'>gps.ino</code> → <strong class='text-slate-300'>ESP32 Dev Module</strong> · <code class='text-xs bg-slate-800 px-1 rounded text-slate-300'>Camera_Marcelo.ino</code> → <strong class='text-slate-300'>Freenove ESP32-S3 WROOM</strong>.",
+                      "Verifica que las credenciales WiFi y MQTT en el código coinciden con tu entorno.",
+                      "Compila y sube. La primera vez se hace por cable USB; las siguientes se pueden hacer por OTA.",
+                    ]} />
+                    {/* Step 2 — Servidor (expandido) */}
+                    <div className="flex gap-4 pb-5">
+                      <div className="flex flex-col items-center">
+                        <div className="w-7 h-7 rounded-sm bg-orange-500/20 border border-orange-500/40 flex items-center justify-center shrink-0">
+                          <span className="text-orange-400 font-black text-xs">2</span>
+                        </div>
+                        <div className="flex-1 w-px bg-slate-800 mt-2" />
+                      </div>
+                      <div className="flex-1 pb-1">
+                        <p className="text-sm font-bold text-slate-200 mb-4">Instalar y configurar el servidor</p>
+                        <div className="space-y-4">
+
+                          {/* Mosquitto */}
+                          <div className="bg-slate-900/50 border border-slate-800 rounded p-4 space-y-3">
+                            <p className="text-xs font-bold text-orange-400 uppercase tracking-wider">① Mosquitto (broker MQTT)</p>
+                            <div className="space-y-2 text-xs text-slate-400">
+                              <p>Instalar el paquete:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`sudo apt update && sudo apt install -y mosquitto mosquitto-clients`}</pre>
+                              <p className="pt-1">Crear <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">/etc/mosquitto/conf.d/rover.conf</code>:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`# Puerto TCP estándar MQTT (ESP32 → broker)
+listener 1883
+allow_anonymous true
+
+# Puerto WebSockets (interfaz web → broker)
+listener 9001
+protocol websockets
+allow_anonymous true`}</pre>
+                              <p className="pt-1">Habilitar y arrancar:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`sudo systemctl enable mosquitto
+sudo systemctl restart mosquitto`}</pre>
+                            </div>
+                          </div>
+
+                          {/* Nginx */}
+                          <div className="bg-slate-900/50 border border-slate-800 rounded p-4 space-y-3">
+                            <p className="text-xs font-bold text-orange-400 uppercase tracking-wider">② Nginx (proxy inverso)</p>
+                            <div className="space-y-2 text-xs text-slate-400">
+                              <p>Instalar:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`sudo apt install -y nginx`}</pre>
+                              <p className="pt-1">Crear <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">/etc/nginx/sites-available/rover</code>:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`server {
+    listen 80;
+    server_name rover.example.com;
+
+    root /var/www/Rover;
+    index index.html;
+    location / { try_files $uri $uri/ =404; }
+}
+
+server {
+    listen 9002;
+    server_name video.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:9002;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 3600s;
+    }
+}`}</pre>
+                              <p className="pt-1">Activar y recargar:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`sudo ln -s /etc/nginx/sites-available/rover /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl enable nginx && sudo systemctl reload nginx`}</pre>
+                            </div>
+                          </div>
+
+                          {/* Video proxy */}
+                          <div className="bg-slate-900/50 border border-slate-800 rounded p-4 space-y-3">
+                            <p className="text-xs font-bold text-orange-400 uppercase tracking-wider">③ Proxy de vídeo (video_proxy.py)</p>
+                            <div className="space-y-2 text-xs text-slate-400">
+                              <p>Instalar dependencias Python:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`sudo apt install -y python3 python3-pip
+pip3 install websockets`}</pre>
+                              <p className="pt-1">Crear el servicio en <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">/etc/systemd/system/video_proxy.service</code>:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`[Unit]
+Description=Rover Video WebSocket Proxy
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /var/www/Rover/video_proxy.py
+Restart=always
+User=www-data
+WorkingDirectory=/var/www/Rover
+
+[Install]
+WantedBy=multi-user.target`}</pre>
+                              <p className="pt-1">Habilitar y arrancar:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`sudo systemctl daemon-reload
+sudo systemctl enable video_proxy
+sudo systemctl start video_proxy`}</pre>
+                            </div>
+                          </div>
+
+                          {/* Cloudflare */}
+                          <div className="bg-slate-900/50 border border-slate-800 rounded p-4 space-y-3">
+                            <p className="text-xs font-bold text-orange-400 uppercase tracking-wider">④ Cloudflare Tunnel</p>
+                            <div className="space-y-2 text-xs text-slate-400">
+                              <p>Instalar <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">cloudflared</code>:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb
+sudo dpkg -i cloudflared.deb`}</pre>
+                              <p className="pt-1">Autenticar y crear el túnel:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`cloudflared tunnel login
+cloudflared tunnel create rover-tunnel`}</pre>
+                              <p className="pt-1">Crear <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">~/.cloudflared/config.yml</code>:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`tunnel: <ID-del-tunnel>
+credentials-file: /root/.cloudflared/<ID-del-tunnel>.json
+
+ingress:
+  - hostname: rover.example.com
+    service: http://localhost:80
+  - hostname: direct.example.com
+    service: tcp://localhost:1883
+  - hostname: video.example.com
+    service: http://localhost:9002
+  - service: http_status:404`}</pre>
+                              <p className="pt-1">Registrar los DNS y arrancar como servicio:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`cloudflared tunnel route dns rover-tunnel rover.example.com
+cloudflared tunnel route dns rover-tunnel direct.example.com
+cloudflared tunnel route dns rover-tunnel video.example.com
+sudo cloudflared service install
+sudo systemctl start cloudflared`}</pre>
+                            </div>
+                          </div>
+
+                          {/* Verificación */}
+                          <div className="bg-slate-900/50 border border-slate-800 rounded p-4 space-y-2">
+                            <p className="text-xs font-bold text-orange-400 uppercase tracking-wider">⑤ Verificación final</p>
+                            <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 text-xs font-mono text-slate-300 overflow-x-auto whitespace-pre">{`sudo systemctl status mosquitto
+sudo systemctl status nginx
+sudo systemctl status video_proxy
+sudo systemctl status cloudflared`}</pre>
+                            <p className="text-xs text-slate-400 pt-1">Todos deben mostrar <strong className="text-slate-200">active (running)</strong>. Los dominios <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">direct.example.com</code> y <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">video.example.com</code> deben responder desde fuera de la red local.</p>
+                          </div>
+
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-4 pb-5">
+                      <div className="flex flex-col items-center">
+                        <div className="w-7 h-7 rounded-sm bg-orange-500/20 border border-orange-500/40 flex items-center justify-center shrink-0">
+                          <span className="text-orange-400 font-black text-xs">3</span>
+                        </div>
+                        <div className="flex-1 w-px bg-slate-800 mt-2" />
+                      </div>
+                      <div className="flex-1 pb-1">
+                        <p className="text-sm font-bold text-slate-200 mb-2">Encender el rover</p>
+                        <ol className="space-y-1.5">
+                          {[
+                            <span>Conectar la batería <Tooltip id="lipo3s">LiPo 3S</Tooltip> (11.1 V).</span>,
+                            <span>Los 3 <Tooltip id="esp32">ESP32</Tooltip> se conectan automáticamente a WiFi y al <Tooltip id="mqtt">broker MQTT</Tooltip>.</span>,
+                            <span>El LED integrado del ESP32 principal indica conexión <Tooltip id="mqtt">MQTT</Tooltip> activa.</span>,
+                          ].map((item, i) => (
+                            <li key={i} className="flex gap-2 text-xs text-slate-400 leading-relaxed">
+                              <span className="text-slate-600 shrink-0 font-mono">{i + 1}.</span>
+                              {item}
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    </div>
+                    <Step n="4" title="Abrir el Centro de Mando" items={[
+                      "Abrir el navegador y navegar a <code class='text-xs bg-slate-800 px-1 rounded text-slate-300'>https://rover.example.com</code>",
+                      "El indicador de estado en el panel debe mostrar <strong class='text-slate-300'>«MQTT Conectado»</strong> en verde.",
+                      "El feed de cámara aparece automáticamente en el panel de vídeo.",
+                    ]} />
+                  </div>
+                </Section>
+
+                {/* 5. Manual de Uso Rápido */}
+                <Section n="5" title="Manual de Uso Rápido">
+                  <ol className="space-y-3">
+                    {[
+                      {
+                        title: "Movimiento básico",
+                        desc: <>Usar el joystick táctil o los sliders del panel para mover el rover.</>,
+                      },
+                      {
+                        title: "Control del gimbal",
+                        desc: <>Los controles de <Tooltip id="gimbal">gimbal</Tooltip> en el panel mueven la cámara en <Tooltip id="pan">pan</Tooltip> (<Tooltip id="stepper">stepper NEMA 17</Tooltip>, izquierda/derecha) y <Tooltip id="tilt">tilt</Tooltip> (<Tooltip id="servo">servo</Tooltip>, arriba/abajo).</>,
+                      },
+                      {
+                        title: "Vídeo en tiempo real",
+                        desc: <>El stream de la cámara aparece en el panel central vía <Tooltip id="websocket">WebSocket</Tooltip>. Si la imagen no carga, verificar que el <Tooltip id="esp32">ESP32</Tooltip>-CAM está encendido y con señal WiFi (ver diagnóstico en sensores/camara.html).</>,
+                      },
+                      {
+                        title: "GPS y mapa",
+                        desc: <>La posición del rover se actualiza en el mapa <Tooltip id="leaflet">Leaflet.js</Tooltip> cada segundo mientras el módulo GPS tenga <Tooltip id="gpsfix">fix</Tooltip>. En exteriores el fix tarda entre 2 y 60 segundos.</>,
+                      },
+                      {
+                        title: "Modo autónomo",
+                        desc: <>Hacer clic en el mapa sobre el punto de destino y pulsar «Modo Auto». El rover navega hacia las coordenadas usando la brújula para corregir el <Tooltip id="heading">heading</Tooltip>. Se detiene automáticamente al llegar a menos de 2 m del objetivo. Pulsar «Modo Manual» para cancelar en cualquier momento.</>,
+                      },
+                      {
+                        title: "Test Deck",
+                        desc: <>Acceder a test.html para probar cada <Tooltip id="motordc">motor</Tooltip> y <Tooltip id="servo">servo</Tooltip> de forma individual sin mover el rover completo. Útil para diagnóstico y calibración.</>,
+                      },
+                      {
+                        title: "Actualización OTA",
+                        desc: <>Los firmware de Mars_Rover.ino y gps.ino soportan <Tooltip id="ota">actualización OTA</Tooltip> inalámbrica vía http://&lt;IP_ESP32&gt;/update (formulario web) o mediante ArduinoOTA desde el <Tooltip id="arduino">IDE</Tooltip>. No es necesario desmontar el rover para flashear.</>,
+                      },
+                    ].map((item, i) => (
+                      <li key={i} className="flex gap-3 p-4 bg-slate-900/50 border border-slate-800 rounded">
+                        <span className="text-orange-400 font-black font-mono text-sm shrink-0 w-5">{i + 1}.</span>
+                        <div>
+                          <strong className="text-slate-200 text-sm">{item.title}:</strong>
+                          <span className="text-slate-400 text-sm ml-1">{item.desc}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </Section>
+
+                {/* 7. Registro Técnico de Problemas */}
+                <Section n="7" title="Registro Técnico de Problemas">
+                  <p className="text-sm text-slate-400 mb-4 leading-relaxed">Problemas reales encontrados durante el desarrollo del firmware y la infraestructura, con causa técnica y solución implementada. Pulsa cualquier entrada para ver los detalles.</p>
+                  <div className="space-y-2">
+                    {[
+                      {
+                        n: 1, area: "Compilación",
+                        symptom: "Error: too few arguments to analogWriteFrequency() al compilar con ESP32 Core v3.x",
+                        cause: <>En Core v3.x las funciones <code className="bg-slate-800 px-1 rounded text-slate-300">analogWriteFrequency()</code> y <code className="bg-slate-800 px-1 rounded text-slate-300">analogWriteResolution()</code> exigen el pin como primer argumento obligatorio, a diferencia de versiones anteriores donde eran globales.</>,
+                        fix: <>Reescritura de <code className="bg-slate-800 px-1 rounded text-slate-300">setup()</code> configurando individualmente cada uno de los 6 pines de motor: <code className="bg-slate-800 px-1 rounded text-slate-300">analogWriteFrequency(pin, freq)</code> y <code className="bg-slate-800 px-1 rounded text-slate-300">analogWriteResolution(pin, bits)</code>.</>,
+                      },
+                      {
+                        n: 2, area: "PWM / Motores",
+                        symptom: "Motores bloqueados con zumbido fuerte y sobrecalentamiento al cambiar de dirección",
+                        cause: <>En el ESP32, una vez que un pin usa <code className="bg-slate-800 px-1 rounded text-slate-300">analogWrite()</code>, el periférico LEDC queda acoplado. Si se llama después a <code className="bg-slate-800 px-1 rounded text-slate-300">digitalWrite(pin, LOW)</code>, el LEDC sigue emitiendo la señal PWM anterior. Ambas entradas del puente H recibían señal activa simultáneamente → freno activo / cortocircuito lógico.</>,
+                        fix: <>Sustitución absoluta de cualquier <code className="bg-slate-800 px-1 rounded text-slate-300">digitalWrite(pin, LOW)</code> en pines de motor por <code className="bg-slate-800 px-1 rounded text-slate-300">analogWrite(pin, 0)</code>, que apaga limpiamente el canal LEDC de hardware.</>,
+                      },
+                      {
+                        n: 3, area: "PWM / Motores",
+                        symptom: "analogWriteFrequency() y analogWriteResolution() sin efecto; motores a frecuencia por defecto",
+                        cause: <>El ESP32 asigna un canal LEDC al pin dinámicamente en la primera escritura. Llamar a <code className="bg-slate-800 px-1 rounded text-slate-300">analogWriteFrequency(pin, freq)</code> antes de la primera escritura falla silenciosamente porque aún no hay canal asociado al pin.</>,
+                        fix: <>Pre-inicialización en <code className="bg-slate-800 px-1 rounded text-slate-300">setup()</code>: ejecutar <code className="bg-slate-800 px-1 rounded text-slate-300">analogWrite(pin, 0)</code> en todos los pines de motor antes de configurar frecuencia y resolución, forzando al núcleo a acoplar los canales LEDC.</>,
+                      },
+                      {
+                        n: 4, area: "PWM / Motores",
+                        symptom: "Sin par ni movimiento a velocidades 100 y 200/255; solo arrancaban al 100% (255)",
+                        cause: <><p>1. El ESP32 opera a 3.3 V mientras el puente H espera 5 V. A 1000 Hz el periodo (1 ms) es demasiado corto para que los pulsos alcancen el umbral lógico en ciclos parciales.</p><p>2. El motor no acumulaba suficiente energía inductiva por pulso para vencer la inercia a velocidades medias.</p></>,
+                        fix: <>Reducción de la frecuencia PWM de todos los motores a <strong className="text-slate-200">200 Hz</strong> (periodo 5 ms). El driver tiene 5× más tiempo para conmutar con señales de 3.3 V y los motores arrancan y operan de forma estable desde velocidades bajas.</>,
+                      },
+                      {
+                        n: 5, area: "Compilación",
+                        symptom: "undefined reference to ServoEasing::attach(int) al compilar",
+                        cause: <>La librería <code className="bg-slate-800 px-1 rounded text-slate-300">ServoEasing</code> requiere la cabecera con extensión <code className="bg-slate-800 px-1 rounded text-slate-300">.hpp</code> para que el compilador instancie correctamente las plantillas internas.</>,
+                        fix: <>Reemplazar <code className="bg-slate-800 px-1 rounded text-slate-300">#include &lt;ServoEasing.h&gt;</code> por <code className="bg-slate-800 px-1 rounded text-slate-300">#include &lt;ServoEasing.hpp&gt;</code>.</>,
+                      },
+                      {
+                        n: 6, area: "Firmware",
+                        symptom: "Bootloop: Guru Meditation Error — Core 1 panic'd (Interrupt wdt timeout on CPU1)",
+                        cause: <><code className="bg-slate-800 px-1 rounded text-slate-300">ESP32PWM::allocateTimer(0–3)</code> colisiona con los temporizadores que el subsistema LEDC de Core v3.x ya reserva para <code className="bg-slate-800 px-1 rounded text-slate-300">analogWrite</code>, bloqueando la CPU1 y disparando el watchdog.</>,
+                        fix: <>Comentar todas las llamadas manuales a <code className="bg-slate-800 px-1 rounded text-slate-300">ESP32PWM::allocateTimer()</code> en <code className="bg-slate-800 px-1 rounded text-slate-300">setup()</code>. Dejar que la librería asigne canales dinámicamente bajo demanda.</>,
+                      },
+                      {
+                        n: 7, area: "Telemetría",
+                        symptom: "Voltaje de batería oscilante y descalibrado respecto al multímetro",
+                        cause: <><p>1. El ADC del ESP32 es muy susceptible al ruido EMI de los motores.</p><p>2. No-linealidad del ADC (curva en «S») por encima de 2.6 V. El factor de escala teórico del divisor (10 kΩ / 3.3 kΩ) no compensaba las tolerancias físicas de las resistencias.</p></>,
+                        fix: <><p>1. <strong className="text-slate-200">Promedio de 50 lecturas</strong> para eliminar picos EMI.</p><p>2. Migración a <code className="bg-slate-800 px-1 rounded text-slate-300">analogReadMilliVolts()</code> con calibración de fábrica de eFuses para linealizar el ADC. Factor definitivo: <code className="bg-slate-800 px-1 rounded text-slate-300">4.03</code>.</p><p>3. <strong className="text-slate-200">Filtro EMA</strong> (coef. 0.05/0.95) para suavizar transiciones en pantalla.</p><p>4. Compensación activa de caída bajo carga: <code className="bg-slate-800 px-1 rounded text-slate-300">s × 0.0004 V</code>.</p></>,
+                      },
+                      {
+                        n: 9, area: "Hardware",
+                        symptom: "GPIO 14 y 15 inactivos (0 V) en múltiples placas; rueda W6 no giraba hacia adelante",
+                        cause: <><p>GPIO 12–15 están reservados por la interfaz JTAG de la ROM de arranque. Aunque se configuren con <code className="bg-slate-800 px-1 rounded text-slate-300">pinMode(OUTPUT)</code>, el hardware JTAG retiene el control del IO MUX y bloquea el PWM.</p><p>Las resistencias pull-up/pull-down internas de estos pines JTAG provocaban adicionalmente comportamiento fantasma (giro espontáneo).</p><p>Llamar a <code className="bg-slate-800 px-1 rounded text-slate-300">pinMode(..., OUTPUT)</code> después de liberar el JTAG reconfiguraba el IO MUX al estado de reset, desconectando el canal LEDC asignado.</p></>,
+                        fix: <><p>1. <code className="bg-slate-800 px-1 rounded text-slate-300">gpio_reset_pin(GPIO_NUM_12/13/14/15)</code> para desvincular los pines del depurador JTAG.</p><p>2. <code className="bg-slate-800 px-1 rounded text-slate-300">gpio_pullup_dis()</code> + <code className="bg-slate-800 px-1 rounded text-slate-300">gpio_pulldown_dis()</code> en cada pin para eliminar resistencias parásitas.</p><p>3. Eliminar las llamadas a <code className="bg-slate-800 px-1 rounded text-slate-300">pinMode(..., OUTPUT)</code> para pines de motor: LEDC conserva el control del IO MUX sin interferencias JTAG. GPIO 14 vuelve a funcionar correctamente.</p></>,
+                      },
+                      {
+                        n: 10, area: "PWM / Motores",
+                        symptom: "Motores bloqueados con zumbido al arrancar desde velocidades bajas (stiction)",
+                        cause: <>Los motores DC reductores tienen alta fricción estática (stiction) en engranajes y escobillas. Con ciclo de trabajo PWM bajo desde reposo absoluto, el par magnético inducido es inferior a la resistencia mecánica estática: la corriente se disipa como calor sin producir rotación.</>,
+                        fix: <>Algoritmo <strong className="text-slate-200">Kickstart</strong> en firmware: al detectar transición de parado a movimiento (variable estática <code className="bg-slate-800 px-1 rounded text-slate-300">wasStopped</code>), se aplica un pulso de 100% potencia (<code className="bg-slate-800 px-1 rounded text-slate-300">255</code>) durante 200 ms para vencer la inercia estática, antes de continuar con la velocidad objetivo.</>,
+                      },
+                      {
+                        n: 11, area: "PWM / Motores",
+                        symptom: "Motores se vuelven a bloquear al terminar el kickstart con velocidades bajas del joystick",
+                        cause: <>Por debajo de ~100/255 de ciclo de trabajo a 200 Hz, el par dinámico es insuficiente para vencer la fricción del tren de engranajes reductor bajo carga, incluso tras el arranque inicial.</>,
+                        fix: <>Remapeo del slider: cuando el rover está en movimiento, el rango de velocidad (0–100%) se escala a PWM <strong className="text-slate-200">100–255</strong> en lugar de 0–255. La parada real escribe un <code className="bg-slate-800 px-1 rounded text-slate-300">0</code> absoluto. Mínimo garantizado de par en todo el rango operativo.</>,
+                      },
+                      {
+                        n: 12, area: "PWM / Motores",
+                        symptom: "Ruido rítmico tipo «palpitaciones» en motores y vibración de servos en reposo",
+                        cause: <><p>1. <code className="bg-slate-800 px-1 rounded text-slate-300">stopMotors()</code> se llamaba en cada iteración del <code className="bg-slate-800 px-1 rounded text-slate-300">loop()</code> incluso en reposo, generando micro-glitches de conmutación en los registros LEDC del H-Bridge.</p><p>2. <code className="bg-slate-800 px-1 rounded text-slate-300">startEaseTo()</code> reiniciaba continuamente el algoritmo de animación sobre los servos de dirección aunque estuvieran quietos, produciendo vibraciones.</p></>,
+                        fix: <><p>1. Variable global <code className="bg-slate-800 px-1 rounded text-slate-300">motorsRunning</code>: <code className="bg-slate-800 px-1 rounded text-slate-300">stopMotors()</code> se ejecuta una única vez al detenerse y el flag impide reescrituras repetitivas en el LEDC.</p><p>2. Función <code className="bg-slate-800 px-1 rounded text-slate-300">setServoAngle()</code> con umbral de 0.05°: los servos solo reciben nueva posición si el ángulo realmente ha cambiado.</p></>,
+                      },
+                      {
+                        n: 13, area: "LEDC / Canales",
+                        symptom: "Rueda 2 giraba sola al encender; ruedas 1 y 6 con impulso fantasma en el arranque",
+                        cause: <>El ESP32 tiene 16 canales LEDC. El firmware usaba 12 pines de tracción + 5 servos = <strong className="text-slate-200">17 canales</strong>, superando el límite de hardware. El canal desbordante solapaba con el GPIO de la rueda 2, que recibía los pulsos de posicionamiento del servo y giraba continuamente.</>,
+                        fix: <>Función <code className="bg-slate-800 px-1 rounded text-slate-300">setMotorPin(pin, val)</code>: si val==0, invoca <code className="bg-slate-800 px-1 rounded text-slate-300">ledcDetach(pin)</code> + <code className="bg-slate-800 px-1 rounded text-slate-300">digitalWrite(pin, LOW)</code>, liberando el canal LEDC. Solo los motores activos consumen canales (máx. 6 simultáneos + 5 servos = 11 &lt; 16). Giro fantasma eliminado por completo.</>,
+                      },
+                      {
+                        n: 14, area: "Hardware",
+                        symptom: "Servo W1 (rueda delantera izquierda) desalineado; posición recta real ≈ 135°–140°",
+                        cause: <>Variación del montaje mecánico del acople del servo en el chasis. El offset de 97° del código original no correspondía al punto cero real de ese servo específico tras el montaje.</>,
+                        fix: <>Constantes de calibración al inicio del firmware (<code className="bg-slate-800 px-1 rounded text-slate-300">OFFSET_SERVO_W1 = 140</code>, etc. para cada servo). Arranque con <code className="bg-slate-800 px-1 rounded text-slate-300">servo.write(OFFSET)</code> en <code className="bg-slate-800 px-1 rounded text-slate-300">setup()</code> en lugar de 90° genérico.</>,
+                      },
+                      {
+                        n: 15, area: "OTA",
+                        symptom: "Era obligatorio desmontar el rover y conectar USB para cada actualización de firmware",
+                        cause: <>Ausencia de protocolo de actualización inalámbrica en la versión inicial, ralentizando significativamente las pruebas de campo.</>,
+                        fix: <><p>1. Integración de <code className="bg-slate-800 px-1 rounded text-slate-300">ArduinoOTA</code> con hostname <em>Perseverance-Rover-ESP32</em> y callbacks de progreso.</p><p>2. <code className="bg-slate-800 px-1 rounded text-slate-300">WiFiMulti</code> con red de respaldo (<em>M3</em>) para evitar lockout si cambian credenciales.</p><p>3. Servidor web en <code className="bg-slate-800 px-1 rounded text-slate-300">/update</code> con zona drag&amp;drop para subir el <code className="bg-slate-800 px-1 rounded text-slate-300">.bin</code> desde cualquier navegador, eludiendo restricciones mDNS del router.</p></>,
+                      },
+                      {
+                        n: 16, area: "Servos",
+                        symptom: "Resolución de 1° insuficiente para micro-alineación; startEaseToMicroseconds() no existe en ServoEasing",
+                        cause: <>Control en grados enteros da pasos de ≈10.31 µs, insuficiente para calibración fina mecánica. ServoEasing no expone un método separado <code className="bg-slate-800 px-1 rounded text-slate-300">startEaseToMicroseconds()</code>.</>,
+                        fix: <><p>Offsets redefinidos directamente en µs: <code className="bg-slate-800 px-1 rounded text-slate-300">OFFSET_W1=1472, W3=1493, W4=1513, W6=1534, CAM_TILT=1472</code>.</p><p>Control con <code className="bg-slate-800 px-1 rounded text-slate-300">startEaseTo(targetUs)</code>: ServoEasing interpreta valores ≥400 como µs automáticamente. Resolución resultante: 1 µs (10× mayor que por grados). Test Deck actualizado a rango 1000–2000 µs con punto neutro en 1500.</p></>,
+                      },
+                      {
+                        n: 17, area: "UI / Web",
+                        symptom: "Panel flotante de emergencia («DETENER TODO») obstruía los controles en móvil al hacer scroll",
+                        cause: <>Posicionamiento fijo rígido (<code className="bg-slate-800 px-1 rounded text-slate-300">fixed bottom-6 right-6</code>) sin adaptación a la posición de scroll del usuario en layouts verticales móviles.</>,
+                        fix: <>Manejador de scroll React (<code className="bg-slate-800 px-1 rounded text-slate-300">window.scrollY</code>): si el usuario supera el 40% de la altura total de pantalla, se aplica <code className="bg-slate-800 px-1 rounded text-slate-300">translateY(calc(-100vh + 220px))</code> para subir el panel automáticamente a la zona superior visible.</>,
+                      },
+                      {
+                        n: 18, area: "Conectividad",
+                        symptom: "ESP32 no se conecta al broker MQTT por el túnel Cloudflare (puerto 1883 TCP) — 08/06/2026",
+                        cause: <>Cloudflare Tunnel (plan gratuito) no soporta TCP directo a menos que el cliente ejecute <code className="bg-slate-800 px-1 rounded text-slate-300">cloudflared</code>. El ESP32 no tiene capacidad de CPU, RAM ni sistema operativo para ejecutarlo.</>,
+                        fix: <><p>1. Subdominio <code className="bg-slate-800 px-1 rounded text-slate-300">direct.example.com</code> configurado como <strong className="text-slate-200">DNS Only (Nube Gris)</strong> para permitir TCP directo sin proxy Cloudflare.</p><p>2. Script DDNS en Python (<code className="bg-slate-800 px-1 rounded text-slate-300">cloudflare_ddns.py</code>) con cron cada 10 min para mantener la IP pública dinámica actualizada en Cloudflare.</p><p>3. Redirección del puerto 1883 TCP en el router doméstico hacia la IP interna del servidor.</p></>,
+                      },
+                      {
+                        n: 19, area: "Cámara",
+                        symptom: "WebSocket TLS del ESP32-CAM falla al conectar; stream limitado a 1 FPS — 08/06/2026",
+                        cause: <><p>1. <code className="bg-slate-800 px-1 rounded text-slate-300">video_proxy.py</code> no estaba corriendo → 502 Bad Gateway.</p><p>2. Cifrado TLS por software de frames VGA (35–50 KB/frame) saturaba el procesador del ESP32-S3 y colapsaba <code className="bg-slate-800 px-1 rounded text-slate-300">sendBIN()</code> a 1 FPS.</p><p>3. Mixed Content: web en HTTPS prohíbe conexiones <code className="bg-slate-800 px-1 rounded text-slate-300">ws://</code> directas desde el navegador.</p></>,
+                        fix: <><p>Arquitectura híbrida: ESP32 envía sin cifrar a <code className="bg-slate-800 px-1 rounded text-slate-300">ws://direct.example.com:9002</code> (puerto 9002 abierto en router). Navegador recibe por <code className="bg-slate-800 px-1 rounded text-slate-300">wss://video.example.com</code> a través del túnel Cloudflare.</p><p>Resolución reducida a <strong className="text-slate-200">FRAMESIZE_CIF (400×296)</strong>, calidad JPEG 20 → 8–10 KB/frame → 15 FPS fluidos.</p><p><code className="bg-slate-800 px-1 rounded text-slate-300">video_proxy.service</code> configurado como servicio systemd con arranque automático.</p></>,
+                      },
+                      {
+                        n: 20, area: "Gimbal",
+                        symptom: "Al mover el slider PAN a la izquierda en la web, el cardán físico gira a la derecha — 12/06/2026",
+                        cause: <>Desajuste entre la orientación de montaje mecánico del stepper NEMA 17 y la escala lógica de la interfaz (0°–180°).</>,
+                        fix: <>Inversión en <code className="bg-slate-800 px-1 rounded text-slate-300">VideoHud.js</code>: el valor de Yaw se envía como <code className="bg-slate-800 px-1 rounded text-slate-300">180 - value</code> al publicar por MQTT, alineando la dirección visual con el comportamiento físico.</>,
+                      },
+                      {
+                        n: 21, area: "UI / Web",
+                        symptom: "Slider de muelle del PAN no regresaba al centro al soltar en Safari/iOS ni en Firefox — 12/06/2026",
+                        cause: <><p>1. <code className="bg-slate-800 px-1 rounded text-slate-300">pointercancel</code> se activa automáticamente en iOS/Safari al detectar scroll involuntario.</p><p>2. Firefox no captura el puntero implícitamente sobre <code className="bg-slate-800 px-1 rounded text-slate-300">input[type=range]</code>; si el cursor sale mínimamente del elemento, <code className="bg-slate-800 px-1 rounded text-slate-300">mouseup</code> no se detecta.</p><p>3. El evento <code className="bg-slate-800 px-1 rounded text-slate-300">onChange</code> nativo sobreescribía la instrucción de centrado a 90° al soltar.</p></>,
+                        fix: <><p>1. TILT migrado a posiciones absolutas estables (sin muelle).</p><p>2. Referencia mutable <code className="bg-slate-800 px-1 rounded text-slate-300">isDraggingYawRef</code> en React.</p><p>3. Eventos de soltado globales en <code className="bg-slate-800 px-1 rounded text-slate-300">window</code> (<code className="bg-slate-800 px-1 rounded text-slate-300">mouseup, touchend, touchcancel, pointerup, pointercancel</code>) para centrar a 90° de forma universal en todos los navegadores y OS.</p></>,
+                      },
+                      {
+                        n: 22, area: "UI / Web",
+                        symptom: "Sliders analógicos de cámara incómodos e imprecisos en pantalla táctil móvil — 12/06/2026",
+                        cause: <>Alta tasa de falsos positivos en el arrastre de sliders pequeños dentro del HUD de vídeo en dispositivos táctiles.</>,
+                        fix: <><p><strong className="text-slate-200">PAN</strong>: sustituido por botones <strong className="text-slate-200">L / R</strong> con indicador de estado dinámico (PARADO / ◀ IZQ / DER ▶) e iluminación activa en cian.</p><p><strong className="text-slate-200">TILT</strong>: 3 botones apilados <strong className="text-slate-200">UP (180°) / CENTER (90°) / DOWN (0°)</strong> con el botón activo iluminado en naranja.</p></>,
+                      },
+                      {
+                        n: 23, area: "Gimbal",
+                        symptom: "Motor PAN con tirones y congelamiento al ejecutar diagnóstico del Test Deck — 12/06/2026",
+                        cause: <><code className="bg-slate-800 px-1 rounded text-slate-300">delay(200)</code> síncrono en la función de kickstart bloqueaba la CPU durante 200 ms por cada rueda, impidiendo las llamadas continuas a <code className="bg-slate-800 px-1 rounded text-slate-300">camPanStepper.run()</code> que AccelStepper necesita para generar sus pulsos lógicos.</>,
+                        fix: <>Estructura global <code className="bg-slate-800 px-1 rounded text-slate-300">KickstartState</code> con cola de temporizadores no bloqueante. El kickstart arranca a 255 y registra el tiempo de vencimiento. En cada iteración de <code className="bg-slate-800 px-1 rounded text-slate-300">loop()</code> se comprueba con <code className="bg-slate-800 px-1 rounded text-slate-300">millis()</code> sin detener la CPU, permitiendo que AccelStepper corra con fluidez.</>,
+                      },
+                      {
+                        n: 24, area: "Gimbal",
+                        symptom: "PAN no respondía en control.html pero sí en test.html — 12/06/2026",
+                        cause: <><p>1. <code className="bg-slate-800 px-1 rounded text-slate-300">runSpeed()</code> sin rampa de aceleración: el motor se calaba al intentar arrancar instantáneamente a 400 pasos/s desde el reposo con el peso de la cámara.</p><p>2. La latencia web hacía que la orden de parada llegara casi simultáneamente al comando de movimiento, sin margen para que el motor realizara un solo paso.</p></>,
+                        fix: <>MQTT YAW: recibe 0 → <code className="bg-slate-800 px-1 rounded text-slate-300">move(+100000)</code>; recibe 180 → <code className="bg-slate-800 px-1 rounded text-slate-300">move(-100000)</code>. Al soltar, <code className="bg-slate-800 px-1 rounded text-slate-300">setCurrentPosition(currentPos)</code> limpia la cola de pasos de forma instantánea. Sustitución de <code className="bg-slate-800 px-1 rounded text-slate-300">runSpeed()</code> por <code className="bg-slate-800 px-1 rounded text-slate-300">run()</code> con <code className="bg-slate-800 px-1 rounded text-slate-300">setAcceleration(500)</code> para arranque suave sin calado.</>,
+                      },
+                      {
+                        n: 25, area: "Gimbal",
+                        symptom: "Servo TILT no se detenía al soltar los botones UP/DOWN; completaba todo el recorrido físico — 12/06/2026",
+                        cause: <><p>1. Tras llamar a <code className="bg-slate-800 px-1 rounded text-slate-300">detach()</code>, el periférico LEDC del ESP32 seguía emitiendo la señal PWM con el último duty cycle: el servo continuaba hasta el límite físico.</p><p>2. <code className="bg-slate-800 px-1 rounded text-slate-300">attach(pin)</code> sin parámetros inicializaba el servo a 90° cada re-vinculación, causando saltos bruscos.</p></>,
+                        fix: <><p>1. Al detener: <code className="bg-slate-800 px-1 rounded text-slate-300">ledcDetach(pin)</code> + <code className="bg-slate-800 px-1 rounded text-slate-300">pinMode(OUTPUT)</code> + <code className="bg-slate-800 px-1 rounded text-slate-300">digitalWrite(LOW)</code> para apagado físico real del hardware LEDC.</p><p>2. Al reanudar: <code className="bg-slate-800 px-1 rounded text-slate-300">attach(pin, currentUs, 544, 2400)</code> con la posición actual como punto de partida, eliminando saltos a 90°.</p></>,
+                      },
+                      {
+                        n: 26, area: "Gimbal",
+                        symptom: "Comportamiento inestable al detener PAN y TILT: saltos o continuación del recorrido — 12/06/2026",
+                        cause: <><p>PAN: consignas estáticas (0°/180°) requerían un comando explícito de parada que podía perderse o retrasarse, dejando el motor girando indefinidamente.</p><p>TILT: desacoplamiento del LEDC para detener el movimiento eliminaba el torque de sujeción, causando caídas de la cámara por gravedad y vibraciones al re-acoplar.</p></>,
+                        fix: <><p>Arquitectura de <strong className="text-slate-200">micro-pasos continuos</strong> en <code className="bg-slate-800 px-1 rounded text-slate-300">VideoHud.js</code>: <code className="bg-slate-800 px-1 rounded text-slate-300">setInterval</code> (80 ms) envía deltas relativos (±25 pasos Yaw / ±0.5° Pitch) mientras el botón está presionado. Al soltar, el intervalo se limpia y los motores se detienen en la última posición recibida sin comando de parada explícito.</p><p>TILT permanece acoplado al LEDC permanentemente para retener torque. Firmware interpreta comandos como deltas float (<code className="bg-slate-800 px-1 rounded text-slate-300">constrain(camTilt + delta, 35, 165)</code>). Comando «CENTER» retorna a 90° suavemente.</p></>,
+                      },
+                    ].map(p => <Problem key={p.n} {...p} />)}
+                  </div>
+                </Section>
+
+              </div>
+            </div>
+
+            <footer className="border-t border-slate-800 px-4 py-5 flex flex-col sm:flex-row items-center justify-between gap-2 font-mono text-xs text-slate-600 tracking-wider no-print"><span>ROVER <span className="text-orange-500/60">PERSEVERANCE</span> · PROYECTO INTERMODULAR 2025/26</span><span>IES CARDENAL CISNEROS · 2DO SMR</span></footer>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<App />);
+    </script>
+  </body>
+</html>

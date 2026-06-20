@@ -1,0 +1,276 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Protocolo de Mensajería | Rover Perseverance</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../style.css" />
+    <style type="text/tailwindcss">
+      @layer utilities {
+        .code-block {
+          @apply font-mono bg-slate-900/50 px-2 py-1 rounded text-orange-400 text-sm border border-slate-800/50 block my-2;
+        }
+        .step-card {
+            @apply relative pl-8 pb-10 border-l border-slate-800 last:pb-0;
+        }
+        .step-number {
+            @apply absolute left-[-13px] top-0 w-6 h-6 rounded-sm bg-slate-900 border border-slate-700 flex items-center justify-center text-xs font-bold text-orange-500;
+        }
+        .topic-pill {
+            @apply inline-block px-2 py-0.5 bg-slate-800 border border-slate-700 rounded text-xs font-mono text-orange-400 mb-2;
+        }
+      }
+    </style>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
+    <script type="text/babel" src="../components/NavBar.js?v=2.2"></script> 
+  </head>
+  <body class="bg-slate-950 text-slate-200 font-sans min-h-screen selection:bg-orange-500/30">
+    <div id="root"></div>
+    <script type="text/babel">
+      function App() {
+        return (
+          <div className="flex flex-col min-h-screen">
+            <NavBar basePath="../" />
+            
+            <div className="max-w-4xl mx-auto px-4 py-8 md:py-12 w-full flex-1">
+              <header className="mb-12 border-b border-slate-800 pb-8 animate-fadeInDown">
+                <h1 className="text-4xl md:text-5xl font-bold text-white mb-3 tracking-tight">
+                    Lógica de <span className="text-orange-500">Mensajería</span>
+                </h1>
+                <p className="text-lg text-slate-400 max-w-2xl">
+                  Explicación del flujo de datos, formatos y protocolos de comunicación entre el centro de mando y el Rover.
+                </p>
+              </header>
+
+              <div className="space-y-12 animate-fadeInUp">
+                
+                {/* INTRODUCCIÓN */}
+                <section>
+                    <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+                        <span className="w-8 h-8 rounded bg-orange-500/10 flex items-center justify-center text-orange-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        </span>
+                        Arquitectura Pub/Sub
+                    </h2>
+                    <p className="text-slate-400 leading-relaxed mb-4">
+                        La comunicación no es directa (punto a punto). Utilizamos un <strong>Broker (Mosquitto)</strong> que actúa como intermediario. Esto permite que el Rover no necesite conocer la dirección IP de la web que lo controla, garantizando una conexión segura incluso a través de internet (Nginx + WSS).
+                    </p>
+                </section>
+
+                {/* PASO A PASO */}
+                <section>
+                    <h2 className="text-2xl font-bold text-white mb-8">Flujo de Ejecución</h2>
+                    
+                    <div className="ml-4">
+                        {/* Paso 1 */}
+                        <div className="step-card">
+                            <div className="step-number">1</div>
+                            <h3 className="text-lg font-bold text-white mb-2">Apertura del Canal de Comunicación</h3>
+                            <p className="text-slate-400 text-sm mb-3">
+                                La web inicia una conexión <strong>WebSocket Segura (WSS)</strong> mediante la librería Paho. Se utiliza el puerto 8443 pasando por Nginx para asegurar el cifrado SSL.
+                            </p>
+                            <div className="topic-pill">Handshake SSL/TLS -&gt; Autenticación MQTT</div>
+                        </div>
+
+                        {/* Paso 2 */}
+                        <div className="step-card">
+                            <div className="step-number">2</div>
+                            <h3 className="text-lg font-bold text-white mb-2">Suscripciones</h3>
+                            <p className="text-slate-400 text-sm mb-3">
+                                Una vez conectado, ambos extremos se "suscriben" a los temas que les interesan para reaccionar a cambios:
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs font-mono mb-4">
+                                <div>
+                                    <div className="flex flex-col gap-1 mb-3">
+                                        <code className="code-block bg-slate-950/50 w-fit m-0">client.subscribe("rover/topic");</code>
+                                        <code className="code-block bg-slate-950/50 w-fit m-0 text-amber-400">client.send(message);</code>
+                                    </div>
+                                    <div className="bg-slate-900/50 p-3 rounded border border-slate-800">
+                                        <span className="text-orange-400 font-bold block mb-2 border-b border-orange-900/30 pb-1">Web (Paho JS):</span>
+                                        <ul className="space-y-1 text-slate-300">
+                                            <li className="text-amber-400/80 font-bold mt-2">Escucha:</li>
+                                            <li>rover/telemetry, rover/status, rover/mode</li>
+                                            <li className="text-amber-400/80 font-bold mt-2">Publica:</li>
+                                            <li>rover/move, rover/mode, rover/cmd, rover/target, rover/gimbal/*</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="flex flex-col gap-1 mb-3">
+                                        <code className="code-block bg-slate-950/50 w-fit m-0">client.subscribe("rover/topic");</code>
+                                        <code className="code-block bg-slate-950/50 w-fit m-0 text-orange-500">client.publish("topic", payload);</code>
+                                    </div>
+                                    <div className="bg-slate-900/50 p-3 rounded border border-slate-800">
+                                        <span className="text-orange-400 font-bold block mb-2 border-b border-orange-900/30 pb-1">Rover (ESP32 C++):</span>
+                                        <ul className="space-y-1 text-slate-300">
+                                            <li className="text-orange-400/80 font-bold mt-2">Escucha:</li>
+                                            <li>rover/move, rover/mode, rover/cmd, rover/target, rover/gimbal/*</li>
+                                            <li className="text-orange-400/80 font-bold mt-2">Publica:</li>
+                                            <li>rover/telemetry, rover/status, rover/mode</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Paso 3 */}
+                        <div className="step-card">
+                            <div className="step-number">3</div>
+                            <h3 className="text-lg font-bold text-white mb-2">El Formato de Datos: JSON</h3>
+                            <p className="text-slate-400 text-sm mb-3">
+                                Para que el Rover y el Mando se entiendan perfectamente, empaquetamos la información usando <strong>JSON</strong> (JavaScript Object Notation). 
+                            </p>
+                            <div className="bg-slate-900/40 p-4 rounded border border-slate-800 text-sm leading-relaxed">
+                                <ul className="space-y-3">
+                                    <li>
+                                        <strong className="text-white block mb-1">¿Qué es?</strong>
+                                        Es un formato de texto ligero organizado en parejas de <strong>"Clave": "Valor"</strong>. Es fácil de leer para nosotros y rapidísimo de procesar para las máquinas.
+                                    </li>
+                                    <li>
+                                        <strong className="text-white block mb-1">En el Proyecto:</strong>
+                                        La Web (con JavaScript) lo genera de forma nativa, y el ESP32 (con C++) lo procesa mediante la librería <code className="text-orange-400">ArduinoJson</code>. 
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        {/* Paso 4 */}
+                        <div className="step-card">
+                            <div className="step-number">4</div>
+                            <h3 className="text-lg font-bold text-white mb-2">Ciclo de Telemetría (El Rover Habla)</h3>
+                            <p className="text-slate-400 text-sm mb-3">
+                                Cada segundo, el Rover empaqueta sus sensores en un objeto JSON y lo lanza al broker.
+                            </p>
+                            <span className="topic-pill">rover/telemetry</span>
+                            <code className="code-block">
+                                {`{
+                                  "battery": 12.4,
+                                  "lat": 37.3835,
+                                  "lon": -2.1421,
+                                  "heading": 45,
+                                  "speed": 0.5
+                                }`}
+                            </code>
+                            
+                            <span className="topic-pill mt-4">rover/status</span>
+                            <code className="code-block">
+                                {`{
+                                  "wifi": true,
+                                  "gps": true
+                                }`}
+                            </code>
+                        </div>
+
+                        {/* Paso 5 */}
+                        <div className="step-card">
+                            <div className="step-number">5</div>
+                            <h3 className="text-lg font-bold text-white mb-2">Ciclo de Control (La Web Manda)</h3>
+                            <p className="text-slate-400 text-sm mb-3">
+                                Cuando el usuario mueve el Joystick, la web envía coordenadas cartesianas normalizadas entre -1 y 1.
+                            </p>
+                            <span className="topic-pill">rover/move</span>
+                            <code className="code-block">
+                                {`{
+                                  "x": 0.0,
+                                  "y": 1.0
+                                }`}
+                            </code>
+
+                            <span className="topic-pill mt-4">rover/mode</span>
+                            <code className="code-block">"MANUAL"</code>
+
+                            <span className="topic-pill mt-4">rover/cmd</span>
+                            <code className="code-block">"STOP"</code>
+
+                            <span className="topic-pill mt-4">rover/gimbal/yaw</span>
+                            <code className="code-block">90</code>
+
+                            <span className="topic-pill mt-4">rover/target</span>
+                            <code className="code-block">
+                                {`{
+                                  "lat": 37.3835,
+                                  "lng": -2.1421
+                                }`}
+                            </code>
+                        </div>
+
+                        {/* Paso 6 */}
+                        <div className="step-card">
+                            <div className="step-number">6</div>
+                            <h3 className="text-lg font-bold text-white mb-2">Lógica de Watchdog (Seguridad)</h3>
+                            <p className="text-slate-400 text-sm">
+                                La web implementa un temporizador de <strong>2 segundos</strong>. Si deja de recibir mensajes en <code className="text-orange-400">rover/telemetry</code>, la interfaz asume pérdida de WiFi y marca los indicadores en rojo. El Rover, por su parte, debe detenerse si deja de recibir mensajes de movimiento por seguridad.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                {/* TABLA DE FORMATOS */}
+                <section className="bg-slate-900/40 rounded p-6 border border-slate-800">
+                     <h2 className="text-xl font-bold text-white mb-4">Resumen de Formatos de Datos</h2>
+                     <div className="overflow-x-auto">
+                         <table className="w-full text-left text-sm">
+                             <thead className="text-slate-500 border-b border-slate-800">
+                                 <tr>
+                                     <th className="pb-3 pr-4">Topic</th>
+                                     <th className="pb-3 pr-4">Tipo</th>
+                                     <th className="pb-3">Propósito</th>
+                                 </tr>
+                             </thead>
+                             <tbody className="text-slate-300 divide-y divide-slate-800/50">
+                                 <tr>
+                                     <td className="py-3 font-mono text-orange-400">rover/telemetry</td>
+                                     <td className="py-3">JSON</td>
+                                     <td className="py-3">Sensor data del rover: batería, GPS, heading, velocidad — cada 1 s.</td>
+                                 </tr>
+                                 <tr>
+                                     <td className="py-3 font-mono text-orange-400">rover/move</td>
+                                     <td className="py-3">JSON</td>
+                                     <td className="py-3">Coordenadas del joystick: <i className="text-xs text-slate-500">{"{\"x\": 0.0, \"y\": 1.0}"}</i></td>
+                                 </tr>
+                                 <tr>
+                                     <td className="py-3 font-mono text-orange-400">rover/status</td>
+                                     <td className="py-3">JSON</td>
+                                     <td className="py-3">Salud del sistema (WIFI, GPS Fix).</td>
+                                 </tr>
+                                 <tr>
+                                     <td className="py-3 font-mono text-orange-400">rover/mode</td>
+                                     <td className="py-3">Texto</td>
+                                     <td className="py-3">Cambio entre MANUAL y AUTO.</td>
+                                 </tr>
+                                 <tr>
+                                     <td className="py-3 font-mono text-orange-400">rover/cmd</td>
+                                     <td className="py-3">Texto</td>
+                                     <td className="py-3">Comandos críticos (STOP).</td>
+                                 </tr>
+                                 <tr>
+                                     <td className="py-3 font-mono text-orange-400">rover/target</td>
+                                     <td className="py-3">JSON</td>
+                                     <td className="py-3">Navegación: <i className="text-xs text-slate-500">{"{\"lat\": 0, \"lng\": 0}"}</i></td>
+                                 </tr>
+                                 <tr>
+                                     <td className="py-3 font-mono text-orange-400">rover/gimbal/*</td>
+                                     <td className="py-3">Número</td>
+                                     <td className="py-3">Movimiento cámara: <i className="text-xs text-slate-500">yaw (stepper) · pitch (servo)</i>.</td>
+                                 </tr>
+                             </tbody>
+                         </table>
+                     </div>
+                </section>
+
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<App />);
+    </script>
+  </body>
+</html>
+

@@ -1,0 +1,10 @@
+[Unit]
+Description=Ejecuta el updater DDNS del Rover cada 5 min
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,1495 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rover - Conexiones</title>
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet" />
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../style.css">
+    
+    <!-- Dependencies -->
+    <script type="text/babel" src="../components/NavBar.js?v=2.2"></script>
+    <script src="../script.js?v=1.4"></script>
+</head>
+
+<body class="bg-slate-950 text-slate-200 font-['Outfit'] min-h-screen flex flex-col bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black">
+    <div id="root" class="flex-1 flex flex-col h-full"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const NavBar = window.NavBar;
+
+        // Helpers para parseo y emparejamiento preciso de tokens en las conexiones
+        const getCleanTokens = (str) => {
+            if (!str) return [];
+            return str.toUpperCase()
+                .split(/[\/\(\)\s,\#\-\[\]\(\)]+/)
+                .map(t => t.trim())
+                .filter(Boolean);
+        };
+
+        const cleanToken = (token) => {
+            if (!token) return "";
+            return token.toUpperCase().replace(/^D/, '').replace(/^GPIO/, '');
+        };
+
+        const matchTokens = (pinLabel, connectionTokens) => {
+            const cleanPin = cleanToken(pinLabel);
+            return connectionTokens.some(tok => {
+                const cleanTok = cleanToken(tok);
+                if (cleanPin === cleanTok) return true;
+                if (cleanPin === 'VIN' && cleanTok.startsWith('VIN')) return true;
+                if (cleanPin === '3V3' && cleanTok.startsWith('3V3')) return true;
+                if (cleanPin === 'G' && cleanTok === 'GND') return true;
+                if (cleanPin === 'GND' && cleanTok === 'GND') return true;
+                if (cleanPin === 'TX' && cleanTok.startsWith('TX')) return true;
+                if (cleanPin === 'RX' && cleanTok.startsWith('RX')) return true;
+                return false;
+            });
+        };
+
+        // Dataset de pines físicos del ESP32 de 38 pines (19 en cada lateral)
+        const PIN_LAYOUT = [
+            // Lado Izquierdo (3V3 a VIN, de arriba a abajo)
+            { id: "3V3", label: "3V3", side: "left", x: 19.5, y: 6.0, type: "power" },
+            { id: "EN", label: "EN", side: "left", x: 19.5, y: 11.0, type: "unused" },
+            { id: "VP", label: "VP", side: "left", x: 19.5, y: 16.0, type: "unused" },
+            { id: "VN", label: "VN", side: "left", x: 19.5, y: 21.0, type: "unused" },
+            { id: "D34", label: "34", side: "left", x: 19.5, y: 26.0, type: "sensor" },
+            { id: "D35", label: "35", side: "left", x: 19.5, y: 31.0, type: "unused" },
+            { id: "D32", label: "32", side: "left", x: 19.5, y: 36.0, type: "motor" },
+            { id: "D33", label: "33", side: "left", x: 19.5, y: 41.0, type: "motor" },
+            { id: "D25", label: "25", side: "left", x: 19.5, y: 46.0, type: "motor" },
+            { id: "D26", label: "26", side: "left", x: 19.5, y: 51.0, type: "motor" },
+            { id: "D27", label: "27", side: "left", x: 19.5, y: 56.0, type: "motor" },
+            { id: "D14", label: "14", side: "left", x: 19.5, y: 61.0, type: "motor" },
+            { id: "D12", label: "12", side: "left", x: 19.5, y: 66.0, type: "signal" },
+            { id: "GND_L", label: "G", side: "left", x: 19.5, y: 71.0, type: "ground" },
+            { id: "D13", label: "13", side: "left", x: 19.5, y: 76.0, type: "signal" },
+            { id: "D2_F", label: "D2", side: "left", x: 19.5, y: 81.0, type: "unused" },
+            { id: "D3_F", label: "D3", side: "left", x: 19.5, y: 86.0, type: "unused" },
+            { id: "CMD", label: "CMD", side: "left", x: 19.5, y: 91.0, type: "unused" },
+            { id: "VIN", label: "VIN", side: "left", x: 19.5, y: 96.0, type: "power" },
+
+            // Lado Derecho (GND a CLK, de arriba a abajo)
+            { id: "GND_R1", label: "G", side: "right", x: 80.5, y: 6.0, type: "ground" },
+            { id: "D23", label: "23", side: "right", x: 80.5, y: 11.0, type: "signal" },
+            { id: "D22", label: "22", side: "right", x: 80.5, y: 16.0, type: "signal" },
+            { id: "TX0", label: "TX", side: "right", x: 80.5, y: 21.0, type: "logic" },
+            { id: "RX0", label: "RX", side: "right", x: 80.5, y: 26.0, type: "logic" },
+            { id: "D21", label: "21", side: "right", x: 80.5, y: 31.0, type: "signal" },
+            { id: "GND_R2", label: "G", side: "right", x: 80.5, y: 36.0, type: "ground" },
+            { id: "D19", label: "19", side: "right", x: 80.5, y: 41.0, type: "signal" },
+            { id: "D18", label: "18", side: "right", x: 80.5, y: 46.0, type: "motor" },
+            { id: "D5", label: "5", side: "right", x: 80.5, y: 51.0, type: "motor" },
+            { id: "D17", label: "17", side: "right", x: 80.5, y: 56.0, type: "motor" },
+            { id: "D16", label: "16", side: "right", x: 80.5, y: 61.0, type: "motor" },
+            { id: "D4", label: "4", side: "right", x: 80.5, y: 66.0, type: "motor" },
+            { id: "D0_B", label: "0", side: "right", x: 80.5, y: 71.0, type: "unused" },
+            { id: "D2", label: "2", side: "right", x: 80.5, y: 76.0, type: "motor" },
+            { id: "D15", label: "15", side: "right", x: 80.5, y: 81.0, type: "signal" },
+            { id: "D1_F", label: "D1", side: "right", x: 80.5, y: 86.0, type: "unused" },
+            { id: "D0_F", label: "D0", side: "right", x: 80.5, y: 91.0, type: "unused" },
+            { id: "CLK", label: "CLK", side: "right", x: 80.5, y: 96.0, type: "unused" }
+        ];
+
+        // Función de búsqueda flexible y robusta para mapear etiquetas a pines físicos del Rover
+        const findConnectionForPin = (pin, wiringData) => {
+            if (!pin || !wiringData || !wiringData.robot) return null;
+            
+            // Soporte si se pasa un string en lugar de objeto pin
+            let label = typeof pin === 'string' ? pin : pin.label;
+            let id = typeof pin === 'object' ? pin.id : "";
+            
+            // Si es un pin de Flash, no tiene conexiones externas en el robot
+            if (id && (id.endsWith('_F') || id === 'CMD' || id === 'CLK' || id === 'SD2' || id === 'SD3')) {
+                return null;
+            }
+            if (label === 'D2' && id === 'D2_F') {
+                return null; // Left-side D2 is flash
+            }
+            if (label === 'D3' && id === 'D3_F') {
+                return null; // Left-side D3 is flash
+            }
+
+            const search = label.toUpperCase().trim();
+            
+            return wiringData.robot.find(item => {
+                const itemPin = item.pin.toUpperCase();
+                const parts = itemPin.split(/[\/\(\)\s,]+/).map(p => p.trim());
+                
+                return parts.some(part => {
+                    const cleanPart = part.replace(/^D/, '').replace(/^GPIO/, '');
+                    const cleanSearch = search.replace(/^D/, '').replace(/^GPIO/, '');
+                    
+                    if (cleanSearch === cleanPart) return true;
+                    
+                    if (cleanSearch === 'VIN' && cleanPart.startsWith('VIN')) return true;
+                    if (cleanSearch === '3V3' && cleanPart.startsWith('3V3')) return true;
+                    if (cleanSearch === 'G' && cleanPart === 'GND') return true;
+                    if (cleanSearch === 'GND' && cleanPart === 'GND') return true;
+                    if (cleanSearch === 'TX' && cleanPart.startsWith('TX')) return true;
+                    if (cleanSearch === 'RX' && cleanPart.startsWith('RX')) return true;
+                    
+                    return false;
+                });
+            });
+        };
+
+        // Dataset de pines del driver paso a paso TMC2209
+        const TMC_PIN_LAYOUT = [
+            // Lado Izquierdo (Potencia y Motor, 30 al 23 de arriba a abajo)
+            { id: "TMC_GND_30", label: "GND", pinNumber: 30, side: "left", type: "ground" },
+            { id: "TMC_VDD", label: "VDD", pinNumber: 29, side: "left", type: "power" },
+            { id: "TMC_B2", label: "B2", pinNumber: 28, side: "left", type: "motor" },
+            { id: "TMC_B1", label: "B1", pinNumber: 27, side: "left", type: "motor" },
+            { id: "TMC_A1", label: "A1", pinNumber: 26, side: "left", type: "motor" },
+            { id: "TMC_A2", label: "A2", pinNumber: 25, side: "left", type: "motor" },
+            { id: "TMC_GND_24", label: "GND", pinNumber: 24, side: "left", type: "ground" },
+            { id: "TMC_VM", label: "VM", pinNumber: 23, side: "left", type: "power" },
+
+            // Lado Derecho (Control, 30 al 23 de arriba a abajo)
+            { id: "TMC_DIR", label: "DIR", pinNumber: 30, side: "right", type: "signal" },
+            { id: "TMC_STEP", label: "STEP", pinNumber: 29, side: "right", type: "signal" },
+            { id: "TMC_MS3", label: "SPREAD", pinNumber: 28, side: "right", type: "unused" },
+            { id: "TMC_PDN_27", label: "PDN", pinNumber: 27, side: "right", type: "unused" },
+            { id: "TMC_PDN_26", label: "PDN", pinNumber: 26, side: "right", type: "unused" },
+            { id: "TMC_MS2", label: "MS2", pinNumber: 25, side: "right", type: "power" },
+            { id: "TMC_MS1", label: "MS1", pinNumber: 24, side: "right", type: "power" },
+            { id: "TMC_EN", label: "EN", pinNumber: 23, side: "right", type: "signal" }
+        ];
+
+        // Función de búsqueda flexible para mapear pines del TMC2209 a sus conexiones reales
+        const findConnectionForTmcPin = (pin, wiringData) => {
+            if (!pin || !wiringData) return null;
+            let label = pin.label;
+            let pinNumber = pin.pinNumber;
+            
+            // Lado de Control
+            if (label === 'STEP') {
+                return { pin: "TMC2209 STEP", dest: "Conectado al pin D23 del ESP32 para recibir pulsos de paso." };
+            }
+            if (label === 'DIR') {
+                return { pin: "TMC2209 DIR", dest: "Conectado al pin D22 del ESP32 para recibir la dirección de giro." };
+            }
+            if (label === 'EN') {
+                return { pin: "TMC2209 EN", dest: "Habilitación. Conectado permanentemente a GND (activo) para habilitación por hardware." };
+            }
+            if (label === 'PDN') {
+                return null;
+            }
+            if (label === 'MS1' || label === 'MS2') {
+                return { pin: `TMC2209 ${label}`, dest: "Configuración microstepping. Conectado directamente a la línea de 3.3V (VDD) mediante Jumper físico." };
+            }
+            if (label === 'SPREAD') {
+                return { pin: "TMC2209 SPREAD", dest: "Configuración modo silencioso/torque en modo standalone (NC = StealthChop)." };
+            }
+
+            // Lado de Potencia y Motor
+            if (label === 'VM') {
+                return { pin: "TMC2209 VMOT", dest: "Alimentación de potencia (11.1V directos de LiPo 3S) + Cap 100µF local." };
+            }
+            if (label === 'GND') {
+                return { pin: "GND", dest: "Masa digital / potencia conectada al punto estrella del Rover." };
+            }
+            if (label === 'A2' || label === 'A1' || label === 'B1' || label === 'B2') {
+                return { pin: "TMC2209 OUT A/B", dest: `Salida de la bobina hacia el motor NEMA 17 (Pin ${pinNumber} - ${label}).` };
+            }
+            if (label === 'VDD') {
+                return { pin: "TMC2209 VDD", dest: "Alimentación lógica de 3.3V provista desde el pin 3V3 del ESP32." };
+            }
+            
+            return null;
+        };
+
+        // Notas técnicas de ingeniería para cada pin del TMC2209
+        const getTmcPinTechnicalNote = (pin) => {
+            if (!pin) return "Selecciona o pasa el cursor sobre cualquier pin físico del driver TMC2209 para ver las directrices técnicas.";
+            const label = pin.label;
+            const id = pin.id;
+            const pinNumber = pin.pinNumber;
+
+            if (id === "TMC_EN") {
+                return "Pin Enable (EN). Activo a nivel lógico bajo (GND). Si está al aire o a 3.3V, el driver se apaga y el motor gira libremente. En este proyecto se conecta a GND para mantenerlo habilitado permanentemente.";
+            }
+            if (id === "TMC_MS1" || id === "TMC_MS2") {
+                return "Pines de configuración de microstepping. En este Rover, se conectan directamente a la línea de 3.3V (VDD) mediante un jumper de plástico para fijar la resolución a 16 micropasos (con interpolación a 256).";
+            }
+            if (id === "TMC_PDN_26" || id === "TMC_PDN_27") {
+                return "Puerto UART (PDN). No se utiliza en este proyecto (el driver trabaja en Standalone). Queda libre y desconectado.";
+            }
+            if (id === "TMC_MS3") {
+                return "Pin de selección SpreadCycle / StealthChop (SPREAD). Al aire activa el modo ultra-silencioso StealthChop. Conectado a VCC (3.3V) activa el modo SpreadCycle para mayor fuerza.";
+            }
+            if (id === "TMC_STEP") {
+                return "Entrada STEP. Recibe los pulsos de paso desde el ESP32 (pin D23). Cada pulso avanza el motor un micropaso. Controla la velocidad de giro.";
+            }
+            if (id === "TMC_DIR") {
+                return "Entrada DIR. Recibe el nivel de dirección desde el ESP32 (pin D22). Define el sentido de giro del eje (horario / antihorario).";
+            }
+            if (id === "TMC_VM") {
+                return "Alimentación de motor (VMOT). Debe ir conectada directamente al positivo de la batería LiPo 3S (11.1V). Es obligatorio soldar un capacitor de 100µF en paralelo cerca de este pin.";
+            }
+            if (id === "TMC_GND_24") {
+                return "Masa de potencia (GND). Retorno de la corriente del motor. Debe ir conectada al punto central estrella (Star-Grounding) con un cable grueso independiente para evitar ruidos.";
+            }
+            if (id === "TMC_A2" || id === "TMC_A1" || id === "TMC_B1" || id === "TMC_B2") {
+                return `Salida para la bobina del motor paso a paso NEMA 17. Las salidas A1/A2 pertenecen a la fase A; B1/B2 a la fase B. Invertir una pareja de cables cambia la dirección física del motor.`;
+            }
+            if (id === "TMC_VDD") {
+                return "Alimentación lógica (VDD). Requiere 3.3V o 5V estables. Se conecta a la salida de 3.3V (pin 3V3) del ESP32.";
+            }
+            if (id === "TMC_GND_30") {
+                return "Masa digital lógica (GND). Punto de referencia de retorno para las señales lógicas de control del ESP32.";
+            }
+            return "";
+        };
+
+        // Diagnóstico y compatibilidad de hardware para el TMC2209
+        const getTmcPinAvailability = (pin, isUsed) => {
+            if (!pin) return null;
+            
+            const label = pin.label;
+            const id = pin.id;
+            const pinNumber = pin.pinNumber;
+            
+            let hardwareStatus = "Pin de Control";
+            let hardwareBadgeColor = "bg-blue-500/10 text-blue-300 border-blue-500/30";
+            let hardwareReason = "Pin de entrada lógica para el control del driver.";
+            let canOutputPWM = false;
+            let canInput = true;
+            let isUsableGpio = false;
+            let type = "standard";
+
+            if (id === "TMC_VM") {
+                type = "power";
+                hardwareStatus = "Potencia Motor (VM)";
+                hardwareBadgeColor = "bg-red-500/15 text-red-300 border border-red-500/30 font-bold";
+                hardwareReason = "Entrada de alimentación para la etapa de potencia del motor (VMOT). Soporta desde 5.5V hasta 36V. Debe conectarse a LiPo 3S con capacitor de desacoplo.";
+            } else if (id === "TMC_VDD") {
+                type = "power";
+                hardwareStatus = "Alimentación Lógica (VDD)";
+                hardwareBadgeColor = "bg-red-500/10 text-red-400 border border-red-500/30";
+                hardwareReason = "Entrada de alimentación para el circuito lógico interno del driver. En este proyecto se alimenta a 3.3V desde el ESP32.";
+            } else if (id === "TMC_GND_24" || id === "TMC_GND_30") {
+                type = "ground";
+                hardwareStatus = "Masa / GND";
+                hardwareBadgeColor = "bg-slate-500/10 text-slate-400 border border-slate-500/30";
+                hardwareReason = "Retorno de corriente. Pin 24 es GND de potencia (retorno motor) y Pin 30 es GND digital de lógica. Ambos deben estar enlazados al GND común del Rover.";
+            } else if (id === "TMC_A2" || id === "TMC_A1" || id === "TMC_B1" || id === "TMC_B2") {
+                type = "motor";
+                hardwareStatus = "Salida Motor";
+                hardwareBadgeColor = "bg-amber-500/10 text-amber-300 border-amber-500/30";
+                hardwareReason = "Salida de corriente puente-H hacia las bobinas del motor paso a paso NEMA 17.";
+            } else if (id === "TMC_EN") {
+                type = "control";
+                hardwareStatus = "Habilitación (EN)";
+                hardwareBadgeColor = "bg-orange-500/15 text-orange-300 border border-orange-500/30";
+                hardwareReason = "Entrada de habilitación del driver. Activo en BAJO (GND). Si está en ALTO (3V3), apaga las salidas.";
+            } else if (id === "TMC_MS1" || id === "TMC_MS2") {
+                type = "power";
+                hardwareStatus = "Alimentación Microstepping (3.3V)";
+                hardwareBadgeColor = "bg-red-500/10 text-red-400 border border-red-500/30";
+                hardwareReason = "Pines de configuración de microstepping. Conectados a la línea lógica de 3.3V (VDD) mediante jumpers de plástico para fijar el modo de 16 micropasos.";
+            } else if (id === "TMC_MS3") {
+                type = "config";
+                hardwareStatus = "Configuración Standalone (StealthChop)";
+                hardwareBadgeColor = "bg-purple-500/15 text-purple-300 border border-purple-500/30";
+                hardwareReason = "Pin SPREAD. Al aire (NC) activa el modo ultra-silencioso StealthChop.";
+            } else if (id === "TMC_PDN_26" || id === "TMC_PDN_27") {
+                type = "logic";
+                hardwareStatus = "Comunicación UART (No Usada)";
+                hardwareBadgeColor = "bg-slate-500/10 text-slate-400 border border-slate-500/30";
+                hardwareReason = "Puerto UART monohilo para control inteligente. En este proyecto no se conecta y queda libre, operando en modo Standalone.";
+            } else if (id === "TMC_STEP" || id === "TMC_DIR") {
+                type = "signal";
+                hardwareStatus = "Señal de Control";
+                hardwareBadgeColor = "bg-blue-500/15 text-blue-300 border-blue-500/30";
+                hardwareReason = "Señales de control de paso (STEP) y sentido (DIR) provistas directamente desde los pines GPIO del ESP32.";
+            }
+
+            return {
+                type,
+                hardwareStatus,
+                hardwareBadgeColor,
+                hardwareReason,
+                canOutputPWM,
+                canInput,
+                isUsableGpio,
+                isOccupied: isUsed
+            };
+        };
+
+        // Notas de diseño electrónico e ingeniería para cada pin del rover
+        const getPinTechnicalNote = (pin) => {
+            if (!pin) return "Selecciona o pasa el cursor sobre cualquier pin físico para ver las directrices técnicas.";
+            const label = pin.label;
+            const id = pin.id;
+            const type = pin.type;
+
+            if (label === 'EN') {
+                return "Línea de Reset (Enable). Conectada al botón de reinicio físico de la placa. No debe conectarse a cargas externas ni a circuitos lógicos activos, ya que provocaría reinicios aleatorios o permanentes del ESP32.";
+            }
+            if (id.endsWith('_F') || id === 'CMD' || id === 'CLK' || id === 'SD2' || id === 'SD3') {
+                return "Línea reservada para el bus de memoria Flash SPI interno. No conectar a ningún periférico bajo ninguna circunstancia, ya que inhabilitará por completo la lectura de firmware al arrancar.";
+            }
+
+            if (type === "unused") return `El pin ${pin.label} no se utiliza actualmente en el firmware. Queda disponible para futures expansiones (ej. sensores analógicos o pines de telemetría adicionales).`;
+            
+            const notes = {
+                motor: `Señal de control PWM/Dirección dirigida al driver DRV8871H del motor. Requiere capacitor electrolítico local de 100µF en la entrada de potencia VM del driver y cerámicos 0.1µF en el motor N20 para absorber el ruido EMI inductivo.`,
+                power: `Línea de alimentación de energía. VIN suministra +5V regulados estables desde el Step-Down MP1584 para alimentar el microcontrolador. 3V3 provee la tensión de referencia lógica para el driver de cámara TMC2209.`,
+                ground: `Punto de masa crítica. Conectar mediante cable de retorno independiente en estrella (Star-Grounding) directo al borne central de masa de la batería para evitar ruido de conmutación de potencia en el chip.`,
+                signal: `Salida de control PWM directa (3.3V) para servomotores Ackerman. La potencia de los servos debe alimentarse de forma aislada a 6V (Step-Down XL4015) incorporando capacitores electrolíticos amortiguadores de 1000µF.`,
+                sensor: `Línea de lectura ADC analógica. Utiliza un divisor resistivo (10k a V_BAT y 3.3k a GND) para adaptar de manera segura el voltaje máximo de la batería LiPo 3S (12.6V) al rango medible de 0 a 3.3V en el pin D34.`,
+                logic: `Líneas de depuración lógica serie (UART). TX0 y RX0 cruzados directos al chip de comunicación USB de la placa para volcado de consola a 115200 baudios en fase de testeo.`
+            };
+            return notes[type] || "";
+        };
+
+        const getPinAvailability = (pin, isUsed) => {
+            if (!pin) return null;
+            
+            const label = pin.label;
+            const id = pin.id;
+            
+            let hardwareStatus = "GPIO Estándar";
+            let hardwareBadgeColor = "bg-amber-500/10 text-amber-300 border-amber-500/30";
+            let hardwareReason = "Pin GPIO digital de propósito general totalmente libre de restricciones físicas. Soporta entrada, salida y generación de señales PWM por hardware (LEDC) aptas para servos o drivers de motor.";
+            let canOutputPWM = true;
+            let canInput = true;
+            let isUsableGpio = true;
+            let type = "standard";
+
+            if (pin.type === "power" || pin.type === "ground") {
+                type = "power_gnd";
+                hardwareStatus = "Alimentación / Masa";
+                hardwareBadgeColor = "bg-red-500/10 text-red-400 border border-red-500/30";
+                hardwareReason = "Este pin está reservado para la alimentación eléctrica (3V3/VIN) o la masa común (GND) del ESP32. No posee registros lógicos ni circuito GPIO; no se puede configurar como entrada o salida.";
+                canOutputPWM = false;
+                canInput = false;
+                isUsableGpio = false;
+            } else if (label === 'EN') {
+                type = "reset";
+                hardwareStatus = "Reset / Enable (EN)";
+                hardwareBadgeColor = "bg-red-500/10 text-red-400 border border-red-500/30";
+                hardwareReason = "Pin de habilitación del chip (CHIP_PU / Reset). Está acoplado físicamente al botón de reinicio de la placa y a un pull-up interno de 10kΩ. Si se conecta a masa (GND), el microcontrolador se reinicia inmediatamente. No es un puerto GPIO y no se puede controlar por software.";
+                canOutputPWM = false;
+                canInput = false;
+                isUsableGpio = false;
+            } else if (id.endsWith('_F') || id === 'CMD' || id === 'CLK' || id === 'SD2' || id === 'SD3') {
+                type = "prohibited_flash";
+                hardwareStatus = "Prohibido (Flash SPI)";
+                hardwareBadgeColor = "bg-red-500/20 text-red-300 border border-red-500/40 font-bold";
+                hardwareReason = "Conexión directa a la memoria Flash SPI interna que almacena el firmware del ESP32. Si se conecta algo aquí, se interferirá con la lectura de instrucciones del chip, provocando congelamientos o reinicios continuos (boot loops).";
+                canOutputPWM = false;
+                canInput = false;
+                isUsableGpio = false;
+            } else if (label === '34' || label === '35' || label === 'VP' || label === 'VN') {
+                type = "input_only";
+                hardwareStatus = "Solo Entrada (Sin PWM)";
+                hardwareBadgeColor = "bg-purple-500/15 text-purple-300 border border-purple-500/30";
+                hardwareReason = "Pin exclusivo de entrada (Input-Only). Físicamente carece de etapa de salida activa (push-pull) y de resistencias pull-up/pull-down internas. NO puede enviar señales ni generar pulsos PWM. Es ideal para sensores analógicos/digitales, pero NO sirve para servos de cámara ni dirección.";
+                canOutputPWM = false;
+                canInput = true;
+                isUsableGpio = true;
+            } else if (label === '0' || label === '2' || label === '12' || label === '15') {
+                type = "restricted_boot";
+                hardwareStatus = "Disponible (Pin de Boot)";
+                hardwareBadgeColor = "bg-orange-500/15 text-orange-300 border border-orange-500/30";
+                hardwareReason = "Es un pin de arranque (Strapping Pin) que configura el modo de inicio del chip al encenderse. Se puede usar normalmente para entradas/salidas (incluido PWM), pero debes asegurar que el circuito externo conectado no fuerce un nivel lógico incorrecto durante el arranque.";
+                canOutputPWM = true;
+                canInput = true;
+                isUsableGpio = true;
+            } else if (label === 'TX' || label === 'RX' || label === 'TX0' || label === 'RX0') {
+                type = "restricted_uart";
+                hardwareStatus = "Restringido (UART0)";
+                hardwareBadgeColor = "bg-orange-500/15 text-orange-300 border-orange-500/30";
+                hardwareReason = "Reservado para la consola de depuración y carga de código USB-Serie. Si se usa externamente, se perderá la telemetría en tiempo real por cable y podría impedir la programación del ESP32.";
+                canOutputPWM = true;
+                canInput = true;
+                isUsableGpio = true;
+            }
+
+            return {
+                type,
+                hardwareStatus,
+                hardwareBadgeColor,
+                hardwareReason,
+                canOutputPWM,
+                canInput,
+                isUsableGpio,
+                isOccupied: isUsed
+            };
+        };
+
+        const PinBox = ({ label, connection, type, isHovered, isSelected, onMouseEnter, onMouseLeave, onClick }) => {
+            let baseColorClass = "bg-gray-100 border-gray-300 text-gray-800";
+            let shadowClass = "";
+            
+            if (type === "power") {
+                baseColorClass = isHovered || isSelected ? "bg-red-500/20 border-red-500 text-red-200" : "bg-red-950/20 border-red-900/40 text-red-300/90";
+                if (isHovered || isSelected) shadowClass = "shadow-[0_0_15px_rgba(239,68,68,0.25)] scale-[1.015]";
+            }
+            if (type === "ground") {
+                baseColorClass = isHovered || isSelected ? "bg-slate-800 border-slate-400 text-slate-100" : "bg-slate-900/40 border-slate-800/80 text-slate-400";
+                if (isHovered || isSelected) shadowClass = "shadow-[0_0_15px_rgba(100,116,139,0.25)] scale-[1.015]";
+            }
+            if (type === "logic") {
+                baseColorClass = isHovered || isSelected ? "bg-orange-500/20 border-orange-500 text-orange-200" : "bg-orange-950/20 border-orange-900/40 text-orange-300/90";
+                if (isHovered || isSelected) shadowClass = "shadow-[0_0_15px_rgba(249,115,22,0.25)] scale-[1.015]";
+            }
+            if (type === "signal") {
+                baseColorClass = isHovered || isSelected ? "bg-blue-500/20 border-blue-500 text-blue-200" : "bg-blue-950/20 border-blue-900/40 text-blue-300/90";
+                if (isHovered || isSelected) shadowClass = "shadow-[0_0_15px_rgba(59,130,246,0.25)] scale-[1.015]";
+            }
+            if (type === "sensor") {
+                baseColorClass = isHovered || isSelected ? "bg-purple-500/20 border-purple-500 text-purple-200" : "bg-purple-950/20 border-purple-900/40 text-purple-300/90";
+                if (isHovered || isSelected) shadowClass = "shadow-[0_0_15px_rgba(168,85,247,0.25)] scale-[1.015]";
+            }
+            if (type === "motor") {
+                baseColorClass = isHovered || isSelected ? "bg-amber-500/20 border-amber-500 text-amber-200" : "bg-amber-950/20 border-amber-900/40 text-amber-300/90";
+                if (isHovered || isSelected) shadowClass = "shadow-[0_0_15px_rgba(16,185,129,0.25)] scale-[1.015]";
+            }
+
+            return (
+                <div 
+                    onMouseEnter={onMouseEnter}
+                    onMouseLeave={onMouseLeave}
+                    onClick={onClick}
+                    className={`flex justify-between items-center p-3 mb-3 border-l-4 rounded border border-slate-800/80 ${onClick ? 'cursor-pointer hover:shadow-lg' : 'cursor-default'} shadow-md text-sm transition-all duration-300 ${baseColorClass} ${shadowClass}`}
+                >
+                    <span className="font-bold font-mono text-base px-2 py-1 bg-black/35 rounded shrink-0">{label}</span>
+                    <span className="ml-4 font-medium tracking-wide text-right leading-snug">{connection}</span>
+                </div>
+            );
+        };
+
+        const ESP32Board = ({ hoveredConnection, selectedPin, onHoverPin, onSelectPin, getPinConnection }) => {
+            return (
+                <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 rounded shadow-2xl p-6 flex flex-col items-center h-auto relative overflow-hidden group/board">
+                    <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:24px_24px] opacity-10"></div>
+                    
+                    <div className="w-full flex justify-between items-center mb-6 z-10">
+                        <div>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest block">Esquema Físico</span>
+                            <h4 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                                NodeMCU - 32S
+                            </h4>
+                        </div>
+                        
+                    </div>
+
+                    {/* Representación vectorial pura en CSS del microcontrolador */}
+                    <div className="relative select-none w-full max-w-[260px] aspect-[215/340] bg-slate-950/40 rounded p-4 border border-slate-800/60 flex items-center justify-center shadow-inner z-10 mb-6">
+                        
+                        {/* Placa de Circuito Impreso (PCB) de Color Negro/Gris Oscuro */}
+                        <div className="relative w-full h-full bg-gradient-to-b from-[#121620] to-[#0d0f15] border-2 border-slate-700/60 rounded shadow-2xl flex flex-col items-center p-3 relative overflow-visible">
+                            {/* Pistas de cobre sutiles de fondo (estilo circuito) */}
+                            <div className="absolute inset-0 opacity-15 bg-[radial-gradient(circle_at_50%_120px,#3b82f6_2px,transparent_2px),radial-gradient(circle_at_20%_200px,#10b981_2px,transparent_2px)] bg-[size:16px_16px]"></div>
+                            
+                            {/* Chip Metálico Principal (ESP-WROOM-32) */}
+                            <div className="w-[70%] h-[32%] bg-gradient-to-br from-[#2f3542] via-[#57606f] to-[#2f3542] border border-[#a4b0be]/50 rounded flex flex-col items-center justify-between p-2 shadow-md relative z-10 mt-2">
+                                {/* Antena Integrada de Trace (Color Latón/Dorado) */}
+                                <div className="w-full h-5 bg-gradient-to-r from-yellow-700 via-yellow-600 to-yellow-800 rounded border border-yellow-600/30 flex flex-col justify-around py-0.5 px-2">
+                                    <div className="w-full h-[2px] bg-yellow-500/80"></div>
+                                    <div className="w-[85%] h-[2px] bg-yellow-500/80"></div>
+                                    <div className="w-[70%] h-[2px] bg-yellow-500/80"></div>
+                                </div>
+                                <div className="text-center font-mono text-[9px] text-slate-100 font-bold uppercase tracking-wider leading-none mb-1">
+                                    ESP-WROOM-32
+                                </div>
+                                <div className="w-[90%] h-0.5 bg-[#2f3542]/50"></div>
+                                <div className="text-[7px] text-[#ced6e0] font-mono leading-none tracking-tight">
+                                    FCC ID: 2AC7Z-ESP32
+                                </div>
+                            </div>
+
+                            {/* LED de Encendido (Rojo) y LED de Usuario (Azul GPIO2) */}
+                            <div className="w-[60%] flex justify-between items-center my-3 z-10 px-2">
+                                <div className="flex flex-col items-center gap-0.5">
+                                    <span className="text-[6px] text-slate-500 font-bold font-mono">PWR</span>
+                                    <div className="w-2 h-2 rounded-sm bg-red-500 shadow-[0_0_8px_#ef4444] animate-pulse"></div>
+                                </div>
+                                <div className="flex flex-col items-center gap-0.5">
+                                    <span className="text-[6px] text-slate-500 font-bold font-mono">D2</span>
+                                    <div className={`w-2 h-2 rounded-sm transition-all duration-300 ${
+                                        selectedPin?.id === "D2" ? "bg-blue-400 shadow-[0_0_8px_#60a5fa] animate-pulse" : "bg-blue-900/60"
+                                    }`}></div>
+                                </div>
+                            </div>
+
+                            {/* Chip del Puente USB-Serie (Silicon Labs CP2102) */}
+                            <div className="w-8 h-8 bg-slate-900 border border-slate-800 rounded flex items-center justify-center shadow-inner z-10 mt-1 mb-2">
+                                <div className="text-[8px] text-slate-600 font-mono font-bold leading-none select-none">
+                                    SiLabs
+                                </div>
+                            </div>
+
+                            {/* Puerto Micro-USB en la parte inferior */}
+                            <div className="w-10 h-4 bg-gradient-to-b from-slate-700 to-slate-800 border border-slate-500 rounded-t-md shadow-md absolute bottom-0 z-10 flex flex-col justify-around px-1 py-0.5">
+                                <div className="w-full h-[1px] bg-slate-950"></div>
+                                <div className="w-full h-[1px] bg-slate-950"></div>
+                            </div>
+
+                            {/* Botones de RESET (EN) y BOOT */}
+                            <div className="w-[85%] flex justify-between items-center absolute bottom-4 z-10 px-2">
+                                <div className="flex flex-col items-center gap-0.5">
+                                    <span className="text-[6px] text-slate-500 font-bold font-mono">EN</span>
+                                    <div className="w-3.5 h-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-600 rounded-sm shadow cursor-pointer"></div>
+                                </div>
+                                <div className="flex flex-col items-center gap-0.5">
+                                    <span className="text-[6px] text-slate-500 font-bold font-mono">BOOT</span>
+                                    <div className="w-3.5 h-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-600 rounded-sm shadow cursor-pointer"></div>
+                                </div>
+                            </div>
+
+                            {/* Tiras de Pines de Cabezal Izquierda y Derecha (Header Columns) */}
+                            <div className="absolute left-[16%] top-[10%] bottom-[10%] w-2 bg-[#1e272e] rounded-sm border border-slate-800 flex flex-col justify-between py-1 px-[1px]">
+                                {Array.from({ length: 19 }).map((_, i) => (
+                                    <div key={i} className="w-[5px] h-[5px] bg-[#d2d2d2] border border-[#7f8c8d] rounded-sm shadow-inner"></div>
+                                ))}
+                            </div>
+
+                            <div className="absolute right-[16%] top-[10%] bottom-[10%] w-2 bg-[#1e272e] rounded-sm border border-slate-800 flex flex-col justify-between py-1 px-[1px]">
+                                {Array.from({ length: 19 }).map((_, i) => (
+                                    <div key={i} className="w-[5px] h-[5px] bg-[#d2d2d2] border border-[#7f8c8d] rounded-sm shadow-inner"></div>
+                                ))}
+                            </div>
+
+                            {/* Superposición interactiva de los pines (mapeada exactamente sobre los contactos hembra de la PCB) */}
+                            {PIN_LAYOUT.map((pin) => {
+                                const connection = getPinConnection(pin);
+                                const isPinUsed = !!connection;
+                                
+                                let isHighlighted = false;
+                                if (hoveredConnection) {
+                                    const tokens = getCleanTokens(hoveredConnection);
+                                    isHighlighted = matchTokens(pin.label, tokens);
+                                }
+                                
+                                const isActive = selectedPin?.id === pin.id || isHighlighted;
+                                
+                                let dotBg = "bg-slate-700/60 border-slate-600";
+                                let glowShadow = "";
+                                
+                                if (isPinUsed) {
+                                    if (pin.type === "power") {
+                                        dotBg = isActive ? "bg-red-400 border-red-200 scale-125" : "bg-red-500 border-red-300";
+                                        glowShadow = isActive ? "shadow-[0_0_12px_#ef4444,0_0_4px_#ef4444]" : "shadow-[0_0_6px_rgba(239,68,68,0.5)]";
+                                    } else if (pin.type === "ground") {
+                                        dotBg = isActive ? "bg-slate-300 border-slate-100 scale-125" : "bg-slate-500 border-slate-400";
+                                        glowShadow = isActive ? "shadow-[0_0_12px_#64748b,0_0_4px_#64748b]" : "shadow-[0_0_6px_rgba(100,116,139,0.5)]";
+                                    } else if (pin.type === "logic") {
+                                        dotBg = isActive ? "bg-orange-400 border-orange-200 scale-125" : "bg-orange-500 border-orange-300";
+                                        glowShadow = isActive ? "shadow-[0_0_12px_#f97316,0_0_4px_#f97316]" : "shadow-[0_0_6px_rgba(249,115,22,0.5)]";
+                                    } else if (pin.type === "signal") {
+                                        dotBg = isActive ? "bg-blue-400 border-blue-200 scale-125" : "bg-blue-500 border-blue-300";
+                                        glowShadow = isActive ? "shadow-[0_0_12px_#3b82f6,0_0_4px_#3b82f6]" : "shadow-[0_0_6px_rgba(59,130,246,0.5)]";
+                                    } else if (pin.type === "sensor") {
+                                        dotBg = isActive ? "bg-purple-400 border-purple-200 scale-125" : "bg-purple-500 border-purple-300";
+                                        glowShadow = isActive ? "shadow-[0_0_12px_#a855f7,0_0_4px_#a855f7]" : "shadow-[0_0_6px_rgba(168,85,247,0.5)]";
+                                    } else if (pin.type === "motor") {
+                                        dotBg = isActive ? "bg-amber-400 border-amber-200 scale-125" : "bg-amber-500 border-amber-300";
+                                        glowShadow = isActive ? "shadow-[0_0_12px_#10b981,0_0_4px_#10b981]" : "shadow-[0_0_6px_rgba(16,185,129,0.5)]";
+                                    }
+                                }
+
+                                // Cálculo de coordenadas dinámicas para encajar exactamente en el cabezal físico de la PCB
+                                const sidePins = PIN_LAYOUT.filter(p => p.side === pin.side);
+                                const sideIndex = sidePins.findIndex(p => p.id === pin.id);
+                                const xPercent = pin.side === 'left' ? 17.5 : 82.5;
+                                const yPercent = 12.0 + sideIndex * 4.22;
+
+                                // Estilos para las etiquetas permanentes según estado
+                                let labelStyle = "bg-slate-950/80 border-slate-800/60 text-slate-400 opacity-80";
+                                if (isActive) {
+                                    if (pin.type === 'power') labelStyle = "bg-slate-900 border-red-500 text-red-200 shadow-[0_0_12px_rgba(239,68,68,0.2)] scale-105 z-30 font-extrabold";
+                                    else if (pin.type === 'ground') labelStyle = "bg-slate-900 border-slate-400 text-slate-100 shadow-[0_0_12px_rgba(148,163,184,0.2)] scale-105 z-30 font-extrabold";
+                                    else if (pin.type === 'logic') labelStyle = "bg-slate-900 border-orange-500 text-orange-200 shadow-[0_0_12px_rgba(249,115,22,0.2)] scale-105 z-30 font-extrabold";
+                                    else if (pin.type === 'signal') labelStyle = "bg-slate-900 border-blue-500 text-blue-200 shadow-[0_0_12px_rgba(59,130,246,0.2)] scale-105 z-30 font-extrabold";
+                                    else if (pin.type === 'sensor') labelStyle = "bg-slate-900 border-purple-500 text-purple-200 shadow-[0_0_12px_rgba(168,85,247,0.2)] scale-105 z-30 font-extrabold";
+                                    else if (pin.type === 'motor') labelStyle = "bg-slate-900 border-amber-500 text-amber-200 shadow-[0_0_12px_rgba(16,185,129,0.2)] scale-105 z-30 font-extrabold";
+                                } else if (isPinUsed) {
+                                    labelStyle = "bg-slate-950/90 border-slate-700/65 text-slate-100 opacity-95 shadow-sm font-semibold";
+                                } else {
+                                    labelStyle = "bg-slate-950/30 border-slate-800/40 text-slate-500 opacity-45";
+                                }
+
+                                // Posicionamiento de las etiquetas laterales
+                                const pinLabelSideStyle = pin.side === 'left' 
+                                    ? 'right-7 top-1/2 -translate-y-1/2 flex-row-reverse' 
+                                    : 'left-7 top-1/2 -translate-y-1/2';
+
+                                return (
+                                    <div 
+                                        key={pin.id}
+                                        style={{ left: `${xPercent}%`, top: `${yPercent}%` }}
+                                        className="absolute transform -translate-x-1/2 -translate-y-1/2 group/pin z-20 cursor-pointer"
+                                        onMouseEnter={() => onHoverPin(pin)}
+                                        onMouseLeave={() => onHoverPin(null)}
+                                        onClick={() => onSelectPin(pin)}
+                                    >
+                                        {/* Punto interactivo de pin */}
+                                        <div className={`w-3.5 h-3.5 rounded-sm border-[1.5px] transition-all duration-300 ${dotBg} ${glowShadow} flex items-center justify-center`}>
+                                            {isActive && (
+                                                <span className="absolute inline-flex h-full w-full rounded-sm animate-ping opacity-75 bg-current" style={{ color: pin.type === 'power' ? '#ef4444' : pin.type === 'ground' ? '#64748b' : pin.type === 'logic' ? '#f97316' : pin.type === 'signal' ? '#3b82f6' : pin.type === 'sensor' ? '#a855f7' : pin.type === 'motor' ? '#10b981' : '#475569' }}></span>
+                                            )}
+                                        </div>
+
+                                        {/* Etiqueta interactiva permanente flanqueando a los lados */}
+                                        <div className={`absolute flex items-center gap-1 select-none transition-all duration-300 border rounded px-1.5 py-0.5 text-[8.5px] font-bold font-mono shadow-md pointer-events-none whitespace-nowrap z-20 ${pinLabelSideStyle} ${labelStyle}`}>
+                                            <span className={`w-1.5 h-1.5 rounded-sm ${
+                                                pin.type === 'power' ? 'bg-red-500' :
+                                                pin.type === 'ground' ? 'bg-slate-400' :
+                                                pin.type === 'logic' ? 'bg-orange-500' :
+                                                pin.type === 'signal' ? 'bg-blue-500' :
+                                                pin.type === 'sensor' ? 'bg-purple-500' :
+                                                pin.type === 'motor' ? 'bg-amber-500' :
+                                                'bg-slate-600'
+                                            }`}></span>
+                                            {pin.label} {isPinUsed ? '⚡' : ''}
+                                        </div>
+
+                                        {/* Número de Pin Impreso en Serigrafía (Lado Interno hacia el centro de la placa) */}
+                                        <div className={`absolute select-none pointer-events-none font-mono text-[8.5px] font-bold transition-all duration-300 ${
+                                            pin.side === 'left' ? 'left-5 top-1/2 -translate-y-1/2 text-left' : 'right-5 top-1/2 -translate-y-1/2 text-right'
+                                        } ${
+                                            isActive 
+                                                ? pin.type === 'power' ? 'text-red-400 font-extrabold scale-110 shadow-sm' :
+                                                  pin.type === 'ground' ? 'text-slate-300 font-extrabold scale-110 shadow-sm' :
+                                                  pin.type === 'logic' ? 'text-orange-400 font-extrabold scale-110 shadow-sm' :
+                                                  pin.type === 'signal' ? 'text-blue-400 font-extrabold scale-110 shadow-sm' :
+                                                  pin.type === 'sensor' ? 'text-purple-400 font-extrabold scale-110 shadow-sm' :
+                                                  'text-amber-400 font-extrabold scale-110 shadow-sm'
+                                                : 'text-slate-100/90'
+                                        }`}>
+                                            {19 - sideIndex}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Inspector de Pin */}
+                    <div className="w-full bg-slate-950/80 border border-slate-800/80 rounded p-5 text-sm z-10 shadow-inner flex-1 flex flex-col justify-between">
+                        <div>
+                            <div className="flex justify-between items-center mb-3">
+                                <h5 className="font-bold text-slate-400 uppercase tracking-wider text-xs flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                    Ficha del Pin
+                                </h5>
+                                {selectedPin && (
+                                    <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-sm font-mono border border-slate-700/50">
+                                        Fijado
+                                    </span>
+                                )}
+                            </div>
+                            
+                            {selectedPin ? (
+                                <div className="space-y-3 animate-fadeIn h-[320px] overflow-y-auto pr-1 pb-6">
+                                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                                        <span className="font-bold font-mono text-lg text-white bg-slate-800/80 px-2.5 py-0.5 rounded border border-slate-700/50">
+                                            {selectedPin.label}
+                                        </span>
+                                        <span className={`px-2.5 py-0.5 rounded-sm text-[10px] uppercase font-bold tracking-wider ${
+                                            selectedPin.type === 'power' ? 'bg-red-500/10 text-red-400 border border-red-500/30' :
+                                            selectedPin.type === 'ground' ? 'bg-slate-500/10 text-slate-400 border border-slate-500/30' :
+                                            selectedPin.type === 'logic' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30' :
+                                            selectedPin.type === 'signal' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30' :
+                                            selectedPin.type === 'sensor' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/30' :
+                                            selectedPin.type === 'motor' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' :
+                                            'bg-slate-800 text-slate-500'
+                                        }`}>
+                                            {selectedPin.type === 'power' ? 'Alimentación' :
+                                             selectedPin.type === 'ground' ? 'Masa / GND' :
+                                             selectedPin.type === 'logic' ? 'Lógica / Serie' :
+                                             selectedPin.type === 'signal' ? 'Señal / Servo' :
+                                             selectedPin.type === 'sensor' ? 'Sensor / ADC' :
+                                             selectedPin.type === 'motor' ? 'Tracción' :
+                                             'Sin conexión'}
+                                        </span>
+                                    </div>
+                                    
+                                    {(() => {
+                                        const connection = getPinConnection(selectedPin);
+                                        const avail = getPinAvailability(selectedPin, !!connection);
+                                        if (!avail) return null;
+                                        
+                                        // Determinar el diagnóstico y recomendación de uso directo
+                                        let diagnosisMsg = "";
+                                        let diagnosisColor = "";
+                                        
+                                        if (avail.type === "power_gnd" || avail.type === "prohibited_flash") {
+                                            diagnosisMsg = "NO REUTILIZABLE: Pin de infraestructura crítica. No conectar ningún dispositivo lógico aquí.";
+                                            diagnosisColor = "text-red-400 bg-red-950/20 border-red-500/30";
+                                        } else if (avail.isOccupied) {
+                                            if (avail.canOutputPWM) {
+                                                diagnosisMsg = "OCUPADO (Pero Apto): Es compatible con salidas PWM para servos/motores, pero está asignado actualmente. Para usarlo debes liberarlo modificando el firmware.";
+                                                diagnosisColor = "text-amber-300 bg-amber-950/20 border-amber-500/30";
+                                            } else {
+                                                diagnosisMsg = "OCUPADO Y LIMITADO: Además de estar en uso, es de solo entrada. Aunque lo liberes, no te servirá para servomotores.";
+                                                diagnosisColor = "text-purple-300 bg-purple-950/20 border-purple-500/30";
+                                            }
+                                        } else {
+                                            if (avail.canOutputPWM) {
+                                                diagnosisMsg = "¡COMPLETAMENTE DISPONIBLE! Totalmente libre y compatible con salidas PWM para servomotores o motores de tracción.";
+                                                diagnosisColor = "text-amber-300 bg-amber-950/20 border-amber-500/30";
+                                            } else {
+                                                diagnosisMsg = "DISPONIBLE LIMITADO: Libre pero es solo de entrada (Input-Only). No sirve para servos, solo para sensores o botones.";
+                                                diagnosisColor = "text-purple-300 bg-purple-950/20 border-purple-500/30";
+                                            }
+                                        }
+
+                                        return (
+                                            <div className="space-y-3 pt-3 border-t border-slate-800/60">
+                                                {/* Uso / Conexión Actual */}
+                                                <div>
+                                                    <span className="text-slate-500 text-xs font-bold block mb-1">Uso / Conexión Actual:</span>
+                                                    <div className="flex items-center gap-2">
+                                                        {avail.isOccupied ? (
+                                                            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider">
+                                                                Ocupado
+                                                            </span>
+                                                        ) : (
+                                                            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider">
+                                                                Libre
+                                                            </span>
+                                                        )}
+                                                        <span className="text-slate-200 font-semibold text-xs leading-relaxed">
+                                                            {connection?.dest || "Disponible para expansión."}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Tipo de Pin y Hardware */}
+                                                <div>
+                                                    <span className="text-slate-500 text-xs font-bold block mb-1">Clase de Hardware:</span>
+                                                    <span className={`inline-flex px-2.5 py-0.5 rounded-sm text-[10px] font-bold tracking-wider border ${avail.hardwareBadgeColor}`}>
+                                                        {avail.hardwareStatus}
+                                                    </span>
+                                                </div>
+
+                                                {/* Tabla de Compatibilidad Física */}
+                                                <div>
+                                                    <span className="text-slate-500 text-xs font-bold block mb-1">Compatibilidad Física:</span>
+                                                    <div className="grid grid-cols-2 gap-2 mt-1">
+                                                        <div className={`p-2 rounded border flex flex-col justify-between ${
+                                                            avail.canOutputPWM ? 'bg-amber-950/15 border-amber-500/30 text-amber-300' : 'bg-red-950/15 border-red-500/30 text-red-300'
+                                                        }`}>
+                                                            <span className="text-[9px] text-slate-400 font-bold block">Salida / PWM (Servos)</span>
+                                                            <span className="font-semibold text-xs mt-1">
+                                                                {avail.canOutputPWM ? "✔️ Compatible" : "❌ Incompatible"}
+                                                            </span>
+                                                        </div>
+                                                        <div className={`p-2 rounded border flex flex-col justify-between ${
+                                                            avail.canInput ? 'bg-amber-950/15 border-amber-500/30 text-amber-300' : 'bg-red-950/15 border-red-500/30 text-red-300'
+                                                        }`}>
+                                                            <span className="text-[9px] text-slate-400 font-bold block">Entrada (Sensores)</span>
+                                                            <span className="font-semibold text-xs mt-1">
+                                                                {avail.canInput ? "✔️ Compatible" : "❌ Incompatible"}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Diagnóstico Directo */}
+                                                <div className={`p-2.5 rounded border text-[11px] leading-relaxed font-medium ${diagnosisColor}`}>
+                                                    <span className="font-bold block text-xs uppercase mb-0.5">Diagnóstico de Uso:</span>
+                                                    {diagnosisMsg}
+                                                </div>
+
+                                                {/* Detalle Técnico */}
+                                                <div>
+                                                    <span className="text-slate-500 text-xs font-bold block mb-1">¿Por qué? / Características del Pin:</span>
+                                                    <p className="text-slate-300 text-xs leading-relaxed bg-slate-950/40 p-2.5 rounded border border-slate-800/80">
+                                                        {avail.hardwareReason}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                    
+                                    <div className="pt-3 border-t border-slate-800/60">
+                                        <span className="text-slate-500 text-xs font-bold block mb-1">Guía Electrónica del Pin:</span>
+                                        <p className="text-slate-400 text-xs leading-relaxed">
+                                            {getPinTechnicalNote(selectedPin)}
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="h-[320px] flex flex-col items-center justify-center text-center text-slate-500 space-y-2 border-2 border-dashed border-slate-800/80 rounded p-4">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-600 animate-pulse"><rect width="16" height="16" x="4" y="4" rx="2" ry="2"/><rect width="6" height="6" x="9" y="9"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+                                    <span className="text-xs font-medium max-w-[200px] leading-relaxed">
+                                        Pasa el cursor sobre un pin de la placa o selecciónalo para ver su guía técnica de diseño.
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const TMC2209Board = ({ hoveredConnection, selectedPin, onHoverPin, onSelectPin, getPinConnection }) => {
+            return (
+                <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 rounded shadow-2xl p-6 flex flex-col items-center h-auto relative overflow-hidden group/board">
+                    <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:24px_24px] opacity-10"></div>
+                    
+                    <div className="w-full flex justify-between items-center mb-6 z-10">
+                        <div>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest block">Esquema Físico Driver</span>
+                            <h4 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                                TMC2209 Stepper Driver
+                            </h4>
+                        </div>
+
+                    </div>
+
+                    {/* Representación vectorial del driver */}
+                    <div className="relative select-none w-full max-w-[260px] aspect-[215/260] bg-slate-950/40 rounded p-4 border border-slate-800/60 flex items-center justify-center shadow-inner z-10 mb-6">
+                        
+                        {/* Placa de Circuito Impreso (PCB) */}
+                        <div className="relative w-full h-full bg-gradient-to-b from-[#0f172a] to-[#020617] border-2 border-slate-700/60 rounded shadow-2xl flex flex-col items-center p-3 relative overflow-visible">
+                            {/* Borde de oro sutil */}
+                            <div className="absolute inset-0 border border-amber-500/15 rounded m-0.5"></div>
+                            
+                            {/* Pistas doradas de circuito de fondo */}
+                            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_30%_50px,#d97706_1.5px,transparent_1.5px),radial-gradient(circle_at_70%_150px,#d97706_1.5px,transparent_1.5px)] bg-[size:12px_12px]"></div>
+                            
+                            {/* Disipador de aluminio anodizado cian/azul */}
+                            <div className="w-[50%] h-[42%] bg-gradient-to-br from-[#06b6d4] via-[#0891b2] to-[#0e7490] border border-orange-400/40 rounded-md shadow-lg flex flex-col justify-between py-2 px-1.5 relative z-10 mt-6 mb-6">
+                                {/* Aletas del disipador */}
+                                <div className="w-full h-full flex flex-row justify-between px-1">
+                                    <div className="w-[3px] h-full bg-orange-950/40 rounded-sm border-r border-white/10"></div>
+                                    <div className="w-[3px] h-full bg-orange-950/40 rounded-sm border-r border-white/10"></div>
+                                    <div className="w-[3px] h-full bg-orange-950/40 rounded-sm border-r border-white/10"></div>
+                                    <div className="w-[3px] h-full bg-orange-950/40 rounded-sm border-r border-white/10"></div>
+                                    <div className="w-[3px] h-full bg-orange-950/40 rounded-sm border-r border-white/10"></div>
+                                    <div className="w-[3px] h-full bg-orange-950/40 rounded-sm border-r border-white/10"></div>
+                                </div>
+                                <div className="absolute inset-x-0 bottom-1 text-center font-mono text-[7px] text-orange-100/80 font-semibold tracking-widest uppercase">
+                                    TMC2209
+                                </div>
+                            </div>
+
+                            {/* Tiras de Pines de Cabezal Izquierda y Derecha (Header Columns) */}
+                            <div className="absolute left-[16%] top-[10%] bottom-[10%] w-2 bg-[#1e272e] rounded-sm border border-slate-800 flex flex-col justify-between py-1 px-[1px]">
+                                {Array.from({ length: 8 }).map((_, i) => (
+                                    <div key={i} className="w-[5px] h-[5px] bg-[#d2d2d2] border border-[#7f8c8d] rounded-sm shadow-inner"></div>
+                                ))}
+                            </div>
+
+                            <div className="absolute right-[16%] top-[10%] bottom-[10%] w-2 bg-[#1e272e] rounded-sm border border-slate-800 flex flex-col justify-between py-1 px-[1px]">
+                                {Array.from({ length: 8 }).map((_, i) => (
+                                    <div key={i} className="w-[5px] h-[5px] bg-[#d2d2d2] border border-[#7f8c8d] rounded-sm shadow-inner"></div>
+                                ))}
+                            </div>
+
+                            {/* Superposición interactiva de los pines */}
+                            {TMC_PIN_LAYOUT.map((pin) => {
+                                const connection = getPinConnection(pin);
+                                const isPinUsed = !!connection;
+                                
+                                let isHighlighted = false;
+                                if (hoveredConnection) {
+                                    const tokens = getCleanTokens(hoveredConnection);
+                                    isHighlighted = matchTokens(pin.label, tokens) || 
+                                                     (pin.label === 'VM' && tokens.includes('VMOT')) || 
+                                                     (pin.label === 'VDD' && tokens.includes('3V3')) ||
+                                                     (tokens.includes('OUT') && ['A1', 'A2', 'B1', 'B2'].includes(pin.label));
+                                }
+                                
+                                const isActive = selectedPin?.id === pin.id || isHighlighted;
+                                
+                                let dotBg = "bg-slate-700/60 border-slate-600";
+                                let glowShadow = "";
+                                
+                                if (isPinUsed) {
+                                    if (pin.type === "power") {
+                                        dotBg = isActive ? "bg-red-400 border-red-200 scale-125" : "bg-red-500 border-red-300";
+                                        glowShadow = isActive ? "shadow-[0_0_12px_#ef4444,0_0_4px_#ef4444]" : "shadow-[0_0_6px_rgba(239,68,68,0.5)]";
+                                    } else if (pin.type === "ground") {
+                                        dotBg = isActive ? "bg-slate-300 border-slate-100 scale-125" : "bg-slate-500 border-slate-400";
+                                        glowShadow = isActive ? "shadow-[0_0_12px_#64748b,0_0_4px_#64748b]" : "shadow-[0_0_6px_rgba(100,116,139,0.5)]";
+                                    } else if (pin.type === "logic") {
+                                        dotBg = isActive ? "bg-orange-400 border-orange-200 scale-125" : "bg-orange-500 border-orange-300";
+                                        glowShadow = isActive ? "shadow-[0_0_12px_#f97316,0_0_4px_#f97316]" : "shadow-[0_0_6px_rgba(249,115,22,0.5)]";
+                                    } else if (pin.type === "signal") {
+                                        dotBg = isActive ? "bg-blue-400 border-blue-200 scale-125" : "bg-blue-500 border-blue-300";
+                                        glowShadow = isActive ? "shadow-[0_0_12px_#3b82f6,0_0_4px_#3b82f6]" : "shadow-[0_0_6px_rgba(59,130,246,0.5)]";
+                                    } else if (pin.type === "motor") {
+                                        dotBg = isActive ? "bg-amber-400 border-amber-200 scale-125" : "bg-amber-500 border-amber-300";
+                                        glowShadow = isActive ? "shadow-[0_0_12px_#10b981,0_0_4px_#10b981]" : "shadow-[0_0_6px_rgba(16,185,129,0.5)]";
+                                    }
+                                }
+
+                                const sidePins = TMC_PIN_LAYOUT.filter(p => p.side === pin.side);
+                                const sideIndex = sidePins.findIndex(p => p.id === pin.id);
+                                const xPercent = pin.side === 'left' ? 17.5 : 82.5;
+                                const yPercent = 14.0 + sideIndex * 10.28;
+
+                                // Estilos para las etiquetas permanentes
+                                let labelStyle = "bg-slate-950/80 border-slate-800/60 text-slate-400 opacity-80";
+                                if (isActive) {
+                                    if (pin.type === 'power') labelStyle = "bg-slate-900 border-red-500 text-red-200 shadow-[0_0_12px_rgba(239,68,68,0.2)] scale-105 z-30 font-extrabold";
+                                    else if (pin.type === 'ground') labelStyle = "bg-slate-900 border-slate-400 text-slate-100 shadow-[0_0_12px_rgba(148,163,184,0.2)] scale-105 z-30 font-extrabold";
+                                    else if (pin.type === 'logic') labelStyle = "bg-slate-900 border-orange-500 text-orange-200 shadow-[0_0_12px_rgba(249,115,22,0.2)] scale-105 z-30 font-extrabold";
+                                    else if (pin.type === 'signal') labelStyle = "bg-slate-900 border-blue-500 text-blue-200 shadow-[0_0_12px_rgba(59,130,246,0.2)] scale-105 z-30 font-extrabold";
+                                    else if (pin.type === 'motor') labelStyle = "bg-slate-900 border-amber-500 text-amber-200 shadow-[0_0_12px_rgba(16,185,129,0.2)] scale-105 z-30 font-extrabold";
+                                } else if (isPinUsed) {
+                                    labelStyle = "bg-slate-950/90 border-slate-700/65 text-slate-100 opacity-95 shadow-sm font-semibold";
+                                } else {
+                                    labelStyle = "bg-slate-950/30 border-slate-800/40 text-slate-500 opacity-45";
+                                }
+
+                                const pinLabelSideStyle = pin.side === 'left' 
+                                    ? 'right-7 top-1/2 -translate-y-1/2 flex-row-reverse' 
+                                    : 'left-7 top-1/2 -translate-y-1/2';
+
+                                return (
+                                    <div 
+                                        key={pin.id}
+                                        style={{ left: `${xPercent}%`, top: `${yPercent}%` }}
+                                        className="absolute transform -translate-x-1/2 -translate-y-1/2 group/pin z-20 cursor-pointer"
+                                        onMouseEnter={() => onHoverPin(pin)}
+                                        onMouseLeave={() => onHoverPin(null)}
+                                        onClick={() => onSelectPin(pin)}
+                                    >
+                                        {/* Punto interactivo */}
+                                        <div className={`w-3.5 h-3.5 rounded-sm border-[1.5px] transition-all duration-300 ${dotBg} ${glowShadow} flex items-center justify-center`}>
+                                            {isActive && (
+                                                <span className="absolute inline-flex h-full w-full rounded-sm animate-ping opacity-75 bg-current" style={{ color: pin.type === 'power' ? '#ef4444' : pin.type === 'ground' ? '#64748b' : pin.type === 'logic' ? '#f97316' : pin.type === 'signal' ? '#3b82f6' : pin.type === 'motor' ? '#10b981' : '#475569' }}></span>
+                                            )}
+                                        </div>
+
+                                        {/* Etiqueta */}
+                                        <div className={`absolute flex items-center gap-1 select-none transition-all duration-300 border rounded px-1.5 py-0.5 text-[8.5px] font-bold font-mono shadow-md pointer-events-none whitespace-nowrap z-20 ${pinLabelSideStyle} ${labelStyle}`}>
+                                            <span className={`w-1.5 h-1.5 rounded-sm ${
+                                                pin.type === 'power' ? 'bg-red-500' :
+                                                pin.type === 'ground' ? 'bg-slate-400' :
+                                                pin.type === 'logic' ? 'bg-orange-500' :
+                                                pin.type === 'signal' ? 'bg-blue-500' :
+                                                pin.type === 'motor' ? 'bg-amber-500' :
+                                                'bg-slate-600'
+                                            }`}></span>
+                                            {pin.label} {isPinUsed ? '⚡' : ''}
+                                        </div>
+
+                                        {/* Número de Pin Impreso en Serigrafía en el lado interior */}
+                                        <div className={`absolute select-none pointer-events-none font-mono text-[8.5px] font-bold transition-all duration-300 ${
+                                            pin.side === 'left' ? 'left-5 top-1/2 -translate-y-1/2 text-left' : 'right-5 top-1/2 -translate-y-1/2 text-right'
+                                        } ${
+                                            isActive 
+                                                ? pin.type === 'power' ? 'text-red-400 font-extrabold scale-110 shadow-sm' :
+                                                  pin.type === 'ground' ? 'text-slate-300 font-extrabold scale-110 shadow-sm' :
+                                                  pin.type === 'logic' ? 'text-orange-400 font-extrabold scale-110 shadow-sm' :
+                                                  pin.type === 'signal' ? 'text-blue-400 font-extrabold scale-110 shadow-sm' :
+                                                  'text-amber-400 font-extrabold scale-110 shadow-sm'
+                                                : 'text-slate-100/90'
+                                        }`}>
+                                            {pin.pinNumber}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Inspector de Pin */}
+                    <div className="w-full bg-slate-950/80 border border-slate-800/80 rounded p-5 text-sm z-10 shadow-inner flex-1 flex flex-col justify-between">
+                        <div>
+                            <div className="flex justify-between items-center mb-3">
+                                <h5 className="font-bold text-slate-400 uppercase tracking-wider text-xs flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-orange-500"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                    Ficha del Pin Driver
+                                </h5>
+                                {selectedPin && (
+                                    <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-sm font-mono border border-slate-700/50">
+                                        Fijado
+                                    </span>
+                                )}
+                            </div>
+                            
+                            {selectedPin ? (
+                                <div className="space-y-3 animate-fadeIn h-[320px] overflow-y-auto pr-1 pb-6">
+                                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                                        <span className="font-bold font-mono text-lg text-white bg-slate-800/80 px-2.5 py-0.5 rounded border border-slate-700/50">
+                                            {selectedPin.label} ({selectedPin.pinNumber})
+                                        </span>
+                                        <span className={`px-2.5 py-0.5 rounded-sm text-[10px] uppercase font-bold tracking-wider ${
+                                            selectedPin.type === 'power' ? 'bg-red-500/10 text-red-400 border border-red-500/30' :
+                                            selectedPin.type === 'ground' ? 'bg-slate-500/10 text-slate-400 border border-slate-500/30' :
+                                            selectedPin.type === 'logic' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30' :
+                                            selectedPin.type === 'signal' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30' :
+                                            selectedPin.type === 'motor' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' :
+                                            'bg-slate-800 text-slate-500'
+                                        }`}>
+                                            {selectedPin.type === 'power' ? 'Alimentación' :
+                                             selectedPin.type === 'ground' ? 'Masa / GND' :
+                                             selectedPin.type === 'logic' ? 'Lógica / Serie' :
+                                             selectedPin.type === 'signal' ? 'Señal / Control' :
+                                             selectedPin.type === 'motor' ? 'Salida Motor' :
+                                             'Sin uso / Configuración'}
+                                        </span>
+                                    </div>
+                                    
+                                    {(() => {
+                                        const connection = getPinConnection(selectedPin);
+                                        const avail = getTmcPinAvailability(selectedPin, !!connection);
+                                        if (!avail) return null;
+                                        
+                                        let diagnosisMsg = "";
+                                        let diagnosisColor = "";
+                                        
+                                        if (selectedPin.type === "unused") {
+                                            diagnosisMsg = "CONFIGURACIÓN HARDWARE: Este pin no va al ESP32. Se configura con puentes de plástico (Jumpers) o soldadura en la placa intermedia.";
+                                            diagnosisColor = "text-purple-300 bg-purple-950/20 border-purple-500/30";
+                                        } else if (avail.isOccupied) {
+                                            diagnosisMsg = `CABLEADO ACTIVO: Este pin está conectado al circuito de control (${connection?.dest}).`;
+                                            diagnosisColor = "text-amber-300 bg-amber-950/20 border-amber-500/30";
+                                        } else {
+                                            diagnosisMsg = "DISPONIBLE / LIBRE: Pin listo para expansión.";
+                                            diagnosisColor = "text-slate-400 bg-slate-900/30 border-slate-800/30";
+                                        }
+
+                                        return (
+                                            <div className="space-y-3 pt-3 border-t border-slate-800/60">
+                                                {/* Uso / Conexión Actual */}
+                                                <div>
+                                                    <span className="text-slate-500 text-xs font-bold block mb-1">Uso / Conexión Actual:</span>
+                                                    <div className="flex items-center gap-2">
+                                                        {avail.isOccupied ? (
+                                                            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider">
+                                                                Conectado
+                                                            </span>
+                                                        ) : (
+                                                            <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/50 text-[10px] font-bold uppercase tracking-wider">
+                                                                No Conectado
+                                                            </span>
+                                                        )}
+                                                        <span className="text-slate-200 font-semibold text-xs leading-relaxed">
+                                                            {connection?.dest || "No cableado al microcontrolador."}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Diagnóstico Directo */}
+                                                <div className={`p-2.5 rounded border text-[11px] leading-relaxed font-medium ${diagnosisColor}`}>
+                                                    <span className="font-bold block text-xs uppercase mb-0.5">Estado:</span>
+                                                    {diagnosisMsg}
+                                                </div>
+
+                                                {/* Detalle Técnico */}
+                                                <div>
+                                                    <span className="text-slate-500 text-xs font-bold block mb-1">Características del Pin:</span>
+                                                    <p className="text-slate-300 text-xs leading-relaxed bg-slate-950/40 p-2.5 rounded border border-slate-800/80">
+                                                        {avail.hardwareReason}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                    
+                                    <div className="pt-3 border-t border-slate-800/60">
+                                        <span className="text-slate-500 text-xs font-bold block mb-1">Guía Electrónica del Pin:</span>
+                                        <p className="text-slate-400 text-xs leading-relaxed">
+                                            {getTmcPinTechnicalNote(selectedPin)}
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="h-[320px] flex flex-col items-center justify-center text-center text-slate-500 space-y-2 border-2 border-dashed border-slate-800/80 rounded p-4">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-600 animate-pulse"><rect width="16" height="16" x="4" y="4" rx="2" ry="2"/><rect width="6" height="6" x="9" y="9"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+                                    <span className="text-xs font-medium max-w-[200px] leading-relaxed">
+                                        Pasa el cursor sobre un pin del driver o selecciónalo para ver su guía técnica de diseño.
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        function App() {
+            const wiringData = window.wiringData;
+            
+            const [hoveredConnection, setHoveredConnection] = useState(null);
+            
+            // Estados para el ESP32
+            const [selectedPin, setSelectedPin] = useState(null);
+            const [hoveredPin, setHoveredPin] = useState(null);
+            
+            // Estados para el TMC2209
+            const [selectedTmcPin, setSelectedTmcPin] = useState(null);
+            const [hoveredTmcPin, setHoveredTmcPin] = useState(null);
+            
+            // Auto seleccionar primer pin del ESP32 al pasar el ratón por la lista
+            useEffect(() => {
+                if (hoveredConnection) {
+                    const tokens = getCleanTokens(hoveredConnection);
+                    let matchingPin = null;
+                    
+                    if (matchTokens("3V3", tokens) || tokens.includes("VDD")) {
+                        matchingPin = PIN_LAYOUT.find(p => p.label === "3V3");
+                    } else if (tokens.includes("23") || tokens.includes("STEP")) {
+                        matchingPin = PIN_LAYOUT.find(p => p.label === "23");
+                    } else if (tokens.includes("22") || tokens.includes("DIR")) {
+                        matchingPin = PIN_LAYOUT.find(p => p.label === "22");
+                    } else {
+                        matchingPin = PIN_LAYOUT.find(p => matchTokens(p.label, tokens));
+                    }
+                    
+                    if (matchingPin) {
+                        setSelectedPin(matchingPin);
+                    }
+                }
+            }, [hoveredConnection]);
+
+            // Auto seleccionar pin del TMC2209 al pasar el ratón por la lista de drivers o energía
+            useEffect(() => {
+                if (hoveredConnection) {
+                    const tokens = getCleanTokens(hoveredConnection);
+                    let matchingPin = null;
+                    if (tokens.includes("VM") || tokens.includes("VMOT")) {
+                        matchingPin = TMC_PIN_LAYOUT.find(p => p.id === "TMC_VM");
+                    } else if (tokens.includes("VDD") || tokens.includes("3V3")) {
+                        matchingPin = TMC_PIN_LAYOUT.find(p => p.id === "TMC_VDD");
+                    } else if (tokens.includes("STEP") || tokens.includes("23")) {
+                        matchingPin = TMC_PIN_LAYOUT.find(p => p.id === "TMC_STEP");
+                    } else if (tokens.includes("DIR") || tokens.includes("22")) {
+                        matchingPin = TMC_PIN_LAYOUT.find(p => p.id === "TMC_DIR");
+                    } else if (tokens.includes("EN") || tokens.includes("ENABLE")) {
+                        matchingPin = TMC_PIN_LAYOUT.find(p => p.id === "TMC_EN");
+                    } else if (tokens.includes("GND")) {
+                        matchingPin = TMC_PIN_LAYOUT.find(p => p.id === "TMC_GND_24");
+                    } else if (tokens.includes("A2")) {
+                        matchingPin = TMC_PIN_LAYOUT.find(p => p.id === "TMC_A2");
+                    } else if (tokens.includes("A1")) {
+                        matchingPin = TMC_PIN_LAYOUT.find(p => p.id === "TMC_A1");
+                    } else if (tokens.includes("B1")) {
+                        matchingPin = TMC_PIN_LAYOUT.find(p => p.id === "TMC_B1");
+                    } else if (tokens.includes("B2")) {
+                        matchingPin = TMC_PIN_LAYOUT.find(p => p.id === "TMC_B2");
+                    } else if (tokens.includes("OUT")) {
+                        matchingPin = TMC_PIN_LAYOUT.find(p => p.id === "TMC_A1");
+                    }
+                    
+                    if (matchingPin) {
+                        setSelectedTmcPin(matchingPin);
+                    }
+                }
+            }, [hoveredConnection]);
+
+            const handleHoverPin = (pin) => {
+                setHoveredPin(pin);
+                if (pin) {
+                    setSelectedPin(pin);
+                    const conn = findConnectionForPin(pin, wiringData);
+                    if (conn) {
+                        setHoveredConnection(conn.pin);
+                    }
+                } else {
+                    setHoveredConnection(null);
+                }
+            };
+
+
+
+
+
+
+            const handleSelectPin = (pin) => {
+                setSelectedPin(pin);
+                const conn = findConnectionForPin(pin, wiringData);
+                if (conn) {
+                    setHoveredConnection(conn.pin);
+                } else {
+                    setHoveredConnection(null);
+                }
+            };
+
+            const handleHoverTmcPin = (pin) => {
+                setHoveredTmcPin(pin);
+                if (pin) {
+                    setSelectedTmcPin(pin);
+                    const conn = findConnectionForTmcPin(pin, wiringData);
+                    if (conn) {
+                        setHoveredConnection(conn.pin);
+                    }
+                } else {
+                    setHoveredConnection(null);
+                }
+            };
+
+
+
+
+
+
+            const handleSelectTmcPin = (pin) => {
+                setSelectedTmcPin(pin);
+                const conn = findConnectionForTmcPin(pin, wiringData);
+                if (conn) {
+                    setHoveredConnection(conn.pin);
+                } else {
+                    setHoveredConnection(null);
+                }
+            };
+
+            return (
+                <div className="flex flex-col h-full relative">
+                    <div className="z-50 shrink-0">
+                        <NavBar basePath="../" isDashboard={false} />
+                    </div>
+
+                    <main className="flex-1 max-w-7xl mx-auto w-full p-6 md:p-8 animate-fadeInUp">
+                        
+                        <div className="mb-10">
+                            <h2 className="text-4xl font-bold text-white mb-3 tracking-tight">Conexiones del Rover</h2>
+                            <p className="text-slate-400 text-lg">Mapeo detallado de los pines del microcontrolador para la tracción, dirección, telemetría y servos de cámara.</p>
+                        </div>
+
+                        {/* Layout de Rejilla Split: Panel Interactiva ESP32 (Fijo) + Fichas de Conexiones */}
+                        <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-8 items-start mb-12">
+                            
+                            {/* COLUMNA 1: ESP32 FÍSICO INTERACTIVO */}
+                            <div className="lg:sticky lg:top-8 min-h-[860px]">
+                                <ESP32Board 
+                                    hoveredConnection={hoveredConnection}
+                                    selectedPin={selectedPin}
+                                    onHoverPin={handleHoverPin}
+                                    onSelectPin={handleSelectPin}
+                                    getPinConnection={(pin) => findConnectionForPin(pin, wiringData)}
+                                />
+                            </div>
+
+                            {/* COLUMNA 2: DETALLES DE CABLEADO Y GRUPOS */}
+                            <div className="bg-slate-900/80 backdrop-blur-xl p-8 rounded border border-slate-700/50 shadow-2xl space-y-8 h-full">
+                                <div>
+                                    <h3 className="text-2xl font-bold text-slate-100 mb-6 border-b border-slate-700 pb-4 flex items-center gap-3">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>
+                                        Mapeo de Pines: ESP32 (Oliver - Control y Comms)
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                                        <div className="space-y-2">
+                                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 bg-slate-800 inline-block px-3 py-1 rounded-sm">Tracción 6WD (PWM/DIR)</h4>
+                                            {wiringData.robot
+                                                .filter(p => p.type === 'motor')
+                                                .map((p, i) => (
+                                                    <PinBox 
+                                                        key={i} 
+                                                        label={p.pin} 
+                                                        connection={p.dest} 
+                                                        type={p.type} 
+                                                        isHovered={hoveredConnection === p.pin}
+                                                        onMouseEnter={() => setHoveredConnection(p.pin)}
+                                                        onMouseLeave={() => setHoveredConnection(null)}
+                                                        onClick={() => handleSelectPin({ label: p.pin.split(/[\/\(\)\s,]+/)[0].trim(), type: p.type, id: p.pin.split(/[\/\(\)\s,]+/)[0].trim() })}
+                                                    />
+                                                ))}
+                                        </div>
+                                        <div className="space-y-2">
+                                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 bg-slate-800 inline-block px-3 py-1 rounded-sm">Servos, Stepper, Energía y Serie</h4>
+                                            {wiringData.robot
+                                                .filter(p => p.type !== 'motor')
+                                                .map((p, i) => (
+                                                    <PinBox 
+                                                        key={i} 
+                                                        label={p.pin} 
+                                                        connection={p.dest} 
+                                                        type={p.type} 
+                                                        isHovered={hoveredConnection === p.pin}
+                                                        onMouseEnter={() => setHoveredConnection(p.pin)}
+                                                        onMouseLeave={() => setHoveredConnection(null)}
+                                                        onClick={() => handleSelectPin({ label: p.pin.split(/[\/\(\)\s,]+/)[0].trim(), type: p.type, id: p.pin.split(/[\/\(\)\s,]+/)[0].trim() })}
+                                                    />
+                                                ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* SECCIONES COMPLEMENTARIAS: ENERGÍA Y DRIVERS */}
+                        <div className="bg-slate-900/80 backdrop-blur-xl p-8 rounded border border-slate-700/50 shadow-2xl space-y-12 mb-12">
+                            
+                            {/* SECCIÓN 2: ENERGÍA Y POTENCIA */}
+                            <div>
+                                <h3 className="text-2xl font-bold text-slate-100 mb-6 border-b border-slate-700 pb-4 flex items-center gap-3">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-500"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                                    Sistema de Energía y Star-Grounding
+                                </h3>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-10 gap-y-6">
+                                    <div className="space-y-2">
+                                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 bg-slate-800 inline-block px-3 py-1 rounded-sm">Distribución de Potencia (Step-Downs)</h4>
+                                        {wiringData.power.map((p, i) => (
+                                            <PinBox key={i} label={p.pin} connection={p.dest} type={p.type} />
+                                        ))}
+                                        
+                                        <div className="mt-6 p-5 bg-blue-950/40 border border-blue-500/30 rounded text-sm text-blue-200 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
+                                            <h5 className="font-bold text-blue-400 mb-2 text-base flex items-center gap-2">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                                                Guía: Capacitores 1000µF en XL4015
+                                            </h5>
+                                            <ul className="list-disc pl-5 space-y-2 opacity-90">
+                                                <li><strong>Ubicación:</strong> Suelda el capacitor en paralelo a la salida, lo más cerca posible del punto donde se dividen los cables hacia los servos. Actúan como un depósito local de energía para los picos de arranque de los servos.</li>
+                                                <li><strong>Polaridad (¡Crítico!):</strong> La patilla larga <strong>(+)</strong> va al <code className="bg-blue-900/50 px-1 rounded">OUT+</code> (Rojo). La patilla corta <strong>(-)</strong>, que tiene la franja con símbolos menos en el cilindro, va al <code className="bg-blue-900/50 px-1 rounded">OUT-</code> (Negro). Conectarlo al revés hará que explote.</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 bg-slate-800 inline-block px-3 py-1 rounded-sm">Aislamiento de Masa (Grounding)</h4>
+                                        <div className="p-5 bg-red-950/40 border border-red-500/30 rounded text-sm text-red-200 flex gap-4 shadow-[0_0_15px_rgba(239,68,68,0.1)]">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-red-500 mt-1"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                                            <div>
+                                                <strong className="block text-red-400 font-bold mb-1 text-base tracking-wide">CRÍTICO: Star-Grounding</strong>
+                                                No unir la masa de la lógica con la de potencia en placas intermedias (protoboards o uniones locales). El ruido inductivo reiniciará el ESP32. Debe haber un cable directo e independiente desde el GND de cada módulo (Drivers, Steppers, Step-Downs, ESP32) hasta un tornillo o barra de cobre principal (BMS P-).
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* SECCIÓN 3: DRIVERS */}
+                            <div>
+                                <h3 className="text-2xl font-bold text-slate-100 mb-6 border-b border-slate-700 pb-4 flex items-center gap-3">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 1 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-.33-1.82V9a1.65 1.65 0 0 0 1.51-1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                                    Módulos de Drivers
+                                </h3>
+                                
+                                <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-8 items-start">
+                                    {/* COLUMNA 1: DRIVER TMC2209 INTERACTIVO */}
+                                    <div className="lg:sticky lg:top-8 min-h-[760px]">
+                                        <TMC2209Board 
+                                            hoveredConnection={hoveredConnection}
+                                            selectedPin={selectedTmcPin}
+                                            onHoverPin={handleHoverTmcPin}
+                                            onSelectPin={handleSelectTmcPin}
+                                            getPinConnection={(pin) => findConnectionForTmcPin(pin, wiringData)}
+                                        />
+                                    </div>
+
+                                    {/* COLUMNA 2: DETALLES DE CABLEADO Y GUÍAS DE MONTAJE */}
+                                    <div className="space-y-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                                            <div className="space-y-6">
+                                                {/* Driver de Cámara (TMC2209) - Con interactividad */}
+                                                <div className="space-y-2">
+                                                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 bg-slate-800 inline-block px-3 py-1 rounded-sm">Driver Cámara (TMC2209)</h4>
+                                                    {wiringData.drivers
+                                                        .filter(p => p.pin.startsWith("TMC2209"))
+                                                        .map((p, i) => (
+                                                            <PinBox 
+                                                                key={i} 
+                                                                label={p.pin} 
+                                                                connection={p.dest} 
+                                                                type={p.type} 
+                                                                isHovered={hoveredConnection === p.pin || (selectedTmcPin && (
+                                                                    p.pin.includes(selectedTmcPin.label) || 
+                                                                    (p.pin.includes("OUT") && ["A1", "A2", "B1", "B2"].includes(selectedTmcPin.label))
+                                                                ))}
+                                                                onMouseEnter={() => setHoveredConnection(p.pin)}
+                                                                onMouseLeave={() => setHoveredConnection(null)}
+                                                                onClick={() => {
+                                                                    const labelPart = p.pin.replace("TMC2209 ", "").split(" ")[0];
+                                                                    let matchLabel = labelPart === "VMOT" ? "VM" : labelPart === "OUT" ? "A1" : labelPart;
+                                                                    const matchingTmcPin = TMC_PIN_LAYOUT.find(tp => tp.label === matchLabel || (matchLabel === "A1" && tp.id === "TMC_A1"));
+                                                                    if (matchingTmcPin) {
+                                                                        handleSelectTmcPin(matchingTmcPin);
+                                                                    }
+                                                                }}
+                                                            />
+                                                        ))}
+                                                </div>
+
+                                                {/* Drivers de Tracción (DRV8871H) - Estáticos, sin interactividad */}
+                                                <div className="space-y-2">
+                                                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 bg-slate-800 inline-block px-3 py-1 rounded-sm">Drivers Tracción (6x DRV8871H)</h4>
+                                                    {wiringData.drivers
+                                                        .filter(p => p.pin.startsWith("DRV8871"))
+                                                        .map((p, i) => (
+                                                            <PinBox 
+                                                                key={i} 
+                                                                label={p.pin} 
+                                                                connection={p.dest} 
+                                                                type={p.type} 
+                                                            />
+                                                        ))}
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="space-y-2">
+                                                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 bg-slate-800 inline-block px-3 py-1 rounded-sm">Guías de Montaje Crítico</h4>
+                                                <div className="p-5 bg-orange-950/40 border border-orange-500/30 rounded text-sm text-orange-200 shadow-[0_0_15px_rgba(249,115,22,0.1)] mb-4">
+                                                    <h5 className="font-bold text-orange-400 mb-3 text-base flex items-center gap-2">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                                                        Instalación de Filtros y Estabilizadores
+                                                    </h5>
+                                                    <ul className="list-disc pl-5 space-y-3 opacity-90 text-xs">
+                                                        <li>
+                                                            <strong>Capacitores Electrolíticos (100µF/25V o 35V):</strong> Se usa uno por cada placa driver (los 6x DRV8871H y el TMC2209). 
+                                                            Tienen polaridad. Suelda la pata larga (+) a <code>VM</code> o <code>VMOT</code> y la corta (-) a <code>GND</code> de cada placa driver.
+                                                            Deben ir soldados directamente en la placa del driver para minimizar inductancia.
+                                                        </li>
+                                                        <li>
+                                                            <strong>Capacitores Cerámicos (0.1µF / 104):</strong> Van directos en las carcasas y terminales de los motores N20 para absorber ruidos electromagnéticos EMI de alta frecuencia.
+                                                        </li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-5 bg-purple-950/40 border border-purple-500/30 rounded text-sm text-purple-200 shadow-[0_0_15px_rgba(168,85,247,0.1)]">
+                                            <h5 className="font-bold text-purple-400 mb-3 text-base flex items-center gap-2">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                                                Configuración "Standalone" (TMC2209)
+                                            </h5>
+                                            <ul className="list-disc pl-5 space-y-4 opacity-90 text-xs">
+                                                <li>
+                                                    <strong>Paso 1 - Ajustar la Fuerza (El tornillo VREF):</strong> Enciende la placa, toca con el polo positivo de un multímetro el potenciómetro central de metal y gira muy despacio hasta medir entre <strong>1.0V y 1.2V</strong> con respecto a GND.
+                                                </li>
+                                                <li>
+                                                    <strong>Paso 2 - Movimiento Silencioso (Pines MS1 y MS2):</strong> Para activar StealthChop (256 micropasos internos interpolados), usa jumpers en la placa intermedia:
+                                                    <table className="w-full mt-3 text-[10px] text-left border-collapse bg-black/30 rounded overflow-hidden">
+                                                        <thead className="bg-purple-900/50 text-purple-200">
+                                                            <tr>
+                                                                <th className="p-2 border border-purple-500/30">MS1</th>
+                                                                <th className="p-2 border border-purple-500/30">MS2</th>
+                                                                <th className="p-2 border border-purple-500/30">Paso real</th>
+                                                                <th className="p-2 border border-purple-500/30">Interpolación (Magia TMC)</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="text-purple-100/80">
+                                                            <tr><td className="p-2 border border-purple-500/30">GND (Sin Jumper)</td><td className="p-2 border border-purple-500/30">GND (Sin Jumper)</td><td className="p-2 border border-purple-500/30">8 Micro-pasos</td><td className="p-2 border border-purple-500/30 text-purple-300">256 (Ultra Suave)</td></tr>
+                                                            <tr><td className="p-2 border border-purple-500/30">VCC (3.3V)</td><td className="p-2 border border-purple-500/30">VCC (3.3V)</td><td className="p-2 border border-purple-500/30 font-bold text-orange-400">16 Micro-pasos (Recomendado)</td><td className="p-2 border border-purple-500/30 text-purple-300">256 (Ultra Suave)</td></tr>
+                                                            <tr><td className="p-2 border border-purple-500/30">VCC (3.3V)</td><td className="p-2 border border-purple-500/30">GND (Sin Jumper)</td><td className="p-2 border border-purple-500/30">32 Micro-pasos</td><td className="p-2 border border-purple-500/30 text-purple-300">256 (Ultra Suave)</td></tr>
+                                                        </tbody>
+                                                    </table>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>
+

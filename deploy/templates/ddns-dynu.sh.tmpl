@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Dynu updater (generado)
+curl -fsS "https://api.dynu.com/nic/update?hostname=${DDNS_DOMAIN}&password=${DDNS_TOKEN}" -o /var/log/ddns-rover.log

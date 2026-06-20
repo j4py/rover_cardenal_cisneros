@@ -1,0 +1,273 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GPS & Navegación | Rover Perseverance</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../style.css" />
+    <script type="text/babel" src="../components/NavBar.js?v=2.2"></script>
+  </head>
+  <body class="bg-slate-950 text-slate-200 font-sans min-h-screen selection:bg-orange-500/30">
+    <div id="root"></div>
+
+    <script type="text/babel">
+      function Section({ id, title, icon, color = "text-amber-400", bg = "bg-amber-500/10", children }) {
+        return (
+          <section id={id} className="scroll-mt-20">
+            <h2 className="text-2xl font-bold text-white mb-5 flex items-center gap-3">
+              <span className={`${bg} ${color} p-2 rounded`}>{icon}</span>
+              {title}
+            </h2>
+            {children}
+          </section>
+        );
+      }
+
+      function PinRow({ pin, signal, desc, color = "text-amber-400" }) {
+        return (
+          <tr className="border-b border-slate-800 hover:bg-slate-800/30 transition-colors">
+            <td className={`py-2 px-3 font-mono text-sm font-bold ${color}`}>{pin}</td>
+            <td className="py-2 px-3 font-mono text-xs text-slate-300">{signal}</td>
+            <td className="py-2 px-3 text-xs text-slate-400">{desc}</td>
+          </tr>
+        );
+      }
+
+      function TopicRow({ dir, topic, payload }) {
+        const isOut = dir === "PUB";
+        return (
+          <tr className="border-b border-slate-800 hover:bg-slate-800/30 transition-colors">
+            <td className="py-2 px-3">
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border font-mono ${isOut ? "text-orange-300 bg-orange-500/10 border-orange-500/30" : "text-amber-300 bg-amber-500/10 border-amber-500/30"}`}>{dir}</span>
+            </td>
+            <td className="py-2 px-3 font-mono text-xs text-orange-300">{topic}</td>
+            <td className="py-2 px-3 text-xs text-slate-400 font-mono">{payload}</td>
+          </tr>
+        );
+      }
+
+      function App() {
+        return (
+          <div className="flex flex-col min-h-screen">
+            <NavBar basePath="../" />
+
+            <div className="max-w-4xl mx-auto px-4 py-10 w-full flex-1">
+              <header className="mb-10 border-b border-slate-800 pb-8">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-[11px] font-bold text-amber-400 uppercase tracking-widest bg-amber-500/10 border border-amber-500/20 rounded-sm px-3 py-1">Sensores · GPS & Navegación</span>
+                  <span className="text-[11px] text-slate-500">Marc Oliva Marqués</span>
+                </div>
+                <h1 className="text-4xl md:text-5xl font-black text-white mb-3 tracking-tight">
+                  GPS <span className="text-amber-400">&</span> Brújula
+                </h1>
+                <p className="text-lg text-slate-400 max-w-2xl">
+                  Sistema de posicionamiento global y orientación magnetométrica con navegación autónoma por coordenadas objetivo.
+                </p>
+              </header>
+
+              <div className="space-y-14">
+
+                {/* Hardware */}
+                <Section id="hardware" title="Componentes de hardware" icon={
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg>
+                } color="text-amber-400" bg="bg-amber-500/10">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {[
+                      {
+                        name: "NEO-6M GPS Module",
+                        tag: "Posicionamiento",
+                        tagColor: "text-amber-300 bg-amber-500/10 border-amber-500/30",
+                        specs: [
+                          ["Interfaz", "UART (9600 baud)"],
+                          ["Pines", "RXD2 → GPIO 16 · TXD2 → GPIO 17"],
+                          ["Alimentación", "3.3 – 5 V (via 5V bus)"],
+                          ["Precisión", "~2.5 m (CEP)"],
+                          ["Fix", "Frío: ~60s · Caliente: ~2s"],
+                        ],
+                      },
+                      {
+                        name: "MechaQMC5883 Magnetómetro",
+                        tag: "Brújula I2C",
+                        tagColor: "text-amber-300 bg-amber-500/10 border-amber-500/30",
+                        specs: [
+                          ["Interfaz", "I2C (addr 0x0D)"],
+                          ["Pines", "SDA → GPIO 21 · SCL → GPIO 22"],
+                          ["Alimentación", "3.3 V (LDO interno ESP32)"],
+                          ["Rango", "±8 Gauss (800 µT)"],
+                          ["ODR", "200 Hz máx."],
+                        ],
+                      },
+                    ].map(c => (
+                      <div key={c.name} className="bg-slate-900 border border-slate-800 rounded p-5 hover:border-amber-500/20 transition-colors">
+                        <div className="flex items-start justify-between mb-4">
+                          <h3 className="text-white font-bold text-sm">{c.name}</h3>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${c.tagColor}`}>{c.tag}</span>
+                        </div>
+                        <table className="w-full text-xs">
+                          <tbody>
+                            {c.specs.map(([k, v]) => (
+                              <tr key={k} className="border-b border-slate-800/60">
+                                <td className="py-1.5 pr-3 text-slate-500 font-medium w-28">{k}</td>
+                                <td className="py-1.5 text-slate-300 font-mono">{v}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Power rail */}
+                  <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {[
+                      { label: "Entrada", val: "11.1 V", sub: "LiPo 3S", color: "text-amber-400" },
+                      { label: "Step-down", val: "5.0 V", sub: "MP1584 Buck", color: "text-orange-400" },
+                      { label: "Lógica", val: "3.3 V", sub: "LDO ESP32", color: "text-slate-400" },
+                      { label: "Tierra", val: "GND", sub: "Bus común", color: "text-slate-400" },
+                    ].map(r => (
+                      <div key={r.label} className="bg-slate-900/50 border border-slate-800 rounded p-3 text-center">
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{r.label}</p>
+                        <p className={`text-lg font-black font-mono ${r.color}`}>{r.val}</p>
+                        <p className="text-[10px] text-slate-500">{r.sub}</p>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+
+                {/* Pinout */}
+                <Section id="pines" title="Asignación de pines" icon={
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3h18"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M3 21h18"/></svg>
+                } color="text-orange-400" bg="bg-orange-500/10">
+                  <div className="overflow-x-auto rounded border border-slate-800">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="bg-slate-900 border-b border-slate-700">
+                          <th className="py-2.5 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">GPIO</th>
+                          <th className="py-2.5 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Señal</th>
+                          <th className="py-2.5 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Descripción</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-slate-950">
+                        <PinRow pin="GPIO 16" signal="UART2 RX" desc="Recibe datos NMEA del módulo GPS (NEO-6M TX)" color="text-amber-400" />
+                        <PinRow pin="GPIO 17" signal="UART2 TX" desc="Envía comandos AT al GPS (raramente usado)" color="text-amber-400" />
+                        <PinRow pin="GPIO 21" signal="I2C SDA" desc="Bus de datos I2C — conectado a QMC5883 SDA" color="text-orange-400" />
+                        <PinRow pin="GPIO 22" signal="I2C SCL" desc="Reloj I2C — conectado a QMC5883 SCL" color="text-orange-400" />
+                        <PinRow pin="VIN" signal="5V" desc="Alimentación desde buck converter MP1584" color="text-amber-400" />
+                        <PinRow pin="3V3" signal="3.3V" desc="Salida regulada interna, alimenta QMC5883 VCC" color="text-slate-400" />
+                        <PinRow pin="GND" signal="GND" desc="Bus de tierra compartido (GPS + QMC5883 + ESP32)" color="text-slate-400" />
+                      </tbody>
+                    </table>
+                  </div>
+                </Section>
+
+                {/* Algoritmos */}
+                <Section id="algoritmos" title="Algoritmos de navegación" icon={
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>
+                } color="text-orange-400" bg="bg-orange-500/10">
+                  <div className="space-y-5">
+                    <div className="bg-slate-900 border border-slate-800 rounded p-6">
+                      <h3 className="text-orange-400 font-bold mb-3">Distancia — TinyGPS++ <code className="text-xs bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">distanceBetween()</code></h3>
+                      <p className="text-sm text-slate-400 mb-4 leading-relaxed">
+                        La librería TinyGPS++ implementa internamente la fórmula de Haversine para calcular la distancia ortodrómica entre dos puntos sobre la esfera terrestre:
+                      </p>
+                      <div className="bg-slate-950 p-4 rounded font-mono text-sm border border-slate-800 space-y-1.5">
+                        <p><span className="text-amber-400">a</span> = sin²(Δφ / 2) + cos(φ₁) · cos(φ₂) · sin²(Δλ / 2)</p>
+                        <p><span className="text-amber-400">c</span> = 2 · atan2(√a, √(1−a))</p>
+                        <p><span className="text-amber-400">d</span> = R · c <span className="text-slate-500">// R = 6371 km</span></p>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-3">El rover considera que ha llegado al destino cuando <code className="text-slate-300">d &lt; 2.0 m</code> (umbral configurable en el firmware).</p>
+                    </div>
+
+                    <div className="bg-slate-900 border border-slate-800 rounded p-6">
+                      <h3 className="text-orange-400 font-bold mb-3">Rumbo — <code className="text-xs bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">courseTo()</code> + corrección de brújula</h3>
+                      <p className="text-sm text-slate-400 mb-4 leading-relaxed">
+                        El ángulo de destino (bearing) se calcula con <code className="text-slate-300 text-xs">TinyGPS::courseTo()</code>, que implementa la fórmula del azimut:
+                      </p>
+                      <div className="bg-slate-950 p-4 rounded font-mono text-sm border border-slate-800 space-y-1.5">
+                        <p><span className="text-amber-400">θ</span> = atan2(sin(Δλ)·cos(φ₂), cos(φ₁)·sin(φ₂) − sin(φ₁)·cos(φ₂)·cos(Δλ))</p>
+                        <p className="text-slate-500 text-xs mt-2">// Convertir a grados y normalizar a [0, 360)</p>
+                        <p><span className="text-orange-400">error</span> = θ − heading_qmc5883</p>
+                        <p><span className="text-orange-400">corrección</span> = map(constrain(error, −180, 180), −180, 180, −255, 255)</p>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-3">El ESP32 envía la corrección al firmware principal vía MQTT para ajustar la diferencia de PWM entre ruedas izquierda/derecha.</p>
+                    </div>
+                  </div>
+                </Section>
+
+                {/* MQTT */}
+                <Section id="mqtt" title="Integración MQTT" icon={
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+                } color="text-orange-400" bg="bg-orange-500/10">
+                  <div className="overflow-x-auto rounded border border-slate-800">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="bg-slate-900 border-b border-slate-700">
+                          <th className="py-2.5 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-16">Dir.</th>
+                          <th className="py-2.5 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tópico</th>
+                          <th className="py-2.5 px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Payload / Formato</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-slate-950">
+                        <TopicRow dir="SUB" topic="rover/mode" payload='"AUTO" | "MANUAL"' />
+                        <TopicRow dir="SUB" topic="rover/cmd" payload='"STOP" — parada de emergencia' />
+                        <TopicRow dir="SUB" topic="rover/target" payload='[40.4168, -3.7038] — array [lat, lon]' />
+                        <TopicRow dir="PUB" topic="rover/telemetry" payload='{"lat":…,"lon":…,"heading":…,"ip_gps":"…"} — cada 1s' />
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-4 grid md:grid-cols-3 gap-3">
+                    {[
+                      { k: "Broker", v: "direct.example.com:1883" },
+                      { k: "Usuario", v: "usuario / ••••••••" },
+                      { k: "Intervalo", v: "Telemetría cada 1000 ms" },
+                    ].map(({ k, v }) => (
+                      <div key={k} className="bg-slate-900/50 border border-slate-800 rounded px-4 py-3">
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider font-mono mb-0.5">{k}</p>
+                        <p className="text-sm font-mono text-slate-200">{v}</p>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+
+                {/* Modo autónomo */}
+                <Section id="autonomo" title="Modo de navegación autónoma" icon={
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                } color="text-amber-400" bg="bg-amber-500/10">
+                  <div className="bg-slate-900 border border-slate-800 rounded p-6">
+                    <ol className="space-y-4">
+                      {[
+                        { n: "01", title: "Recepción de destino", desc: 'El operador envía coordenadas via MQTT (topic rover/target). El ESP32 almacena lat/lon objetivo.' },
+                        { n: "02", title: "Activación de modo auto", desc: 'Al publicar "AUTO" (o "GPS") en rover/mode, el firmware activa el bucle de navegación autónoma.' },
+                        { n: "03", title: "Cálculo de distancia y rumbo", desc: 'Cada ciclo: distanceBetween() calcula metros al destino, courseTo() el ángulo óptimo.' },
+                        { n: "04", title: "Corrección de heading", desc: 'El heading real viene del QMC5883. La diferencia entre rumbo objetivo y real genera una corrección PWM diferencial.' },
+                        { n: "05", title: "Llegada", desc: 'Si la distancia cae bajo 2 m, el rover detiene los motores y queda a la espera de un nuevo destino (no desactiva el modo).' },
+                      ].map(s => (
+                        <li key={s.n} className="flex gap-4 items-start">
+                          <span className="text-2xl font-black text-slate-700 font-mono shrink-0 w-10 text-right">{s.n}</span>
+                          <div>
+                            <p className="text-sm font-bold text-slate-200 mb-1">{s.title}</p>
+                            <p className="text-xs text-slate-400 leading-relaxed">{s.desc}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                </Section>
+
+              </div>
+            </div>
+
+            <footer className="border-t border-slate-800 px-4 py-5 flex flex-col sm:flex-row items-center justify-between gap-2 font-mono text-xs text-slate-600 tracking-wider"><span>ROVER <span className="text-orange-500/60">PERSEVERANCE</span> · PROYECTO INTERMODULAR 2025/26</span><span>IES CARDENAL CISNEROS · 2DO SMR</span></footer>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<App />);
+    </script>
+  </body>
+</html>

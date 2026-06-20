@@ -1,0 +1,11 @@
+// Plantilla de configuración MQTT de la web.
+// deploy/deploy.sh genera el mqtt.js real a partir de este formato según el modo.
+// NO pongas credenciales reales aquí: este archivo se publica.
+window.MQTT_CONFIG = {
+  HOST: "CAMBIA_MQTT_HOST",      // LAN: IP del servidor · DDNS: hostname · Cloudflare: mqtt.<dominio>
+  PORT: 443,                      // LAN: 80 · DDNS/Cloudflare: 443
+  PATH: "/mqtt",
+  USERNAME: "CAMBIA_MQTT_USER",
+  PASSWORD: "CAMBIA_MQTT_PASS"
+};
+window.VIDEO_WS_URL = "CAMBIA_VIDEO_WS_URL"; // p.ej. ws://<ip>:9002 o wss://<host>/video

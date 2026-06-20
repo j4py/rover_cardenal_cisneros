@@ -1,0 +1,1033 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rover Test Deck | Panel de Diagnóstico</title>
+
+  <!-- Fonts & Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  
+  <!-- Styles -->
+  <link rel="stylesheet" href="style.css?v=1.1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style type="text/tailwindcss">
+    @layer utilities {
+        .glass-card {
+          @apply bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded p-5 shadow-2xl transition-all duration-300 hover:border-slate-700/60;
+        }
+        .btn-test-action {
+          @apply px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700 active:scale-95 border border-slate-700 rounded text-xs font-mono text-slate-300 transition-all flex items-center justify-center gap-1.5 shadow-md shadow-black/20 select-none;
+        }
+        .btn-test-action-active {
+          @apply px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 active:scale-95 border border-amber-500/40 rounded text-xs font-mono text-amber-300 transition-all flex items-center justify-center gap-1.5 shadow-md shadow-amber-950/20 select-none;
+        }
+        .btn-test-forward {
+          @apply px-3 py-1.5 bg-amber-950/40 hover:bg-amber-800/40 active:scale-95 border border-amber-500/30 rounded text-xs font-mono text-amber-300 transition-all flex items-center justify-center gap-1 shadow-md shadow-amber-950/10 select-none;
+        }
+        .btn-test-backward {
+          @apply px-3 py-1.5 bg-rose-950/40 hover:bg-rose-800/40 active:scale-95 border border-rose-500/30 rounded text-xs font-mono text-rose-300 transition-all flex items-center justify-center gap-1 shadow-md shadow-rose-950/10 select-none;
+        }
+      }
+      
+      .glow-amber {
+        box-shadow: 0 0 20px rgba(245, 158, 11, 0.15);
+      }
+      .glow-amber {
+        box-shadow: 0 0 20px rgba(245, 158, 11, 0.15);
+      }
+      @keyframes pulse-subtle {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.85; transform: scale(0.98); }
+      }
+      .animate-pulse-subtle {
+        animation: pulse-subtle 2s infinite ease-in-out;
+      }
+      @keyframes spin-slow {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      .animate-spin-slow {
+        animation: spin-slow 12s linear infinite;
+      }
+      @keyframes scaleUp {
+        from { transform: scale(0.95); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+      }
+      .animate-scaleUp {
+        animation: scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+      }
+  </style>
+
+  <!-- Dependencies -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
+  <script src="mqtt.js"></script>
+
+  <!-- Components -->
+  <script type="text/babel" src="components/NavBar.js?v=2.2"></script>
+</head>
+
+<body
+  class="bg-slate-950 text-slate-200 font-['Outfit'] min-h-screen flex flex-col bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black select-none">
+  <div id="root" class="flex-1 flex flex-col h-full"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+    const NavBar = window.NavBar;
+
+    // Componente visual de tarjeta de motor
+    const MotorCard = ({ id, name, label, isTesting, sendTestCommand }) => {
+      return (
+        <div className={`p-4 rounded border transition-all duration-300 flex flex-col justify-between h-36 ${isTesting ? 'bg-amber-500/10 border-amber-500 glow-amber scale-[1.02]' : 'bg-slate-900/50 border-slate-800'}`}>
+          <div className="flex justify-between items-start">
+            <div>
+              <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest block">Motor #{id}</span>
+              <span className="text-sm font-semibold text-white">{label}</span>
+            </div>
+            <span className={`w-2 h-2 rounded-sm ${isTesting ? 'bg-amber-400 animate-pulse' : 'bg-slate-700'}`}></span>
+          </div>
+          
+          <div className="flex gap-2">
+            <button 
+              onClick={() => sendTestCommand({ type: "motor", id, dir: 1, speed: 180, duration: 1500 }, name)}
+              className="btn-test-forward flex-1"
+            >
+              <span>Adelante</span>
+            </button>
+            <button 
+              onClick={() => sendTestCommand({ type: "motor", id, dir: -1, speed: 180, duration: 1500 }, name)}
+              className="btn-test-backward flex-1"
+            >
+              <span>Atrás</span>
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    // Componente visual de tarjeta de servo de dirección
+    const ServoCard = ({ id, name, label, offset = 1500, presetLabels = ["(Izq)", "(Cent)", "(Der)"], isTesting, sendTestCommand }) => {
+      const [pulse, setPulse] = useState(1500);
+      const lastPulseRef = useRef(1500);
+
+      const triggerServo = (targetPulse) => {
+        let cleanPulse = targetPulse === "" ? lastPulseRef.current : Math.min(2000, Math.max(1000, targetPulse));
+        setPulse(cleanPulse);
+        const absUs = Math.min(2400, Math.max(544, offset + (cleanPulse - 1500)));
+        sendTestCommand({ type: "servo", id: String(id), us: absUs }, name);
+      };
+
+      const handleFocus = () => {
+        lastPulseRef.current = pulse === "" ? 1500 : pulse;
+        setPulse("");
+      };
+
+      const handleBlur = () => {
+        if (pulse === "") {
+          setPulse(lastPulseRef.current);
+        } else {
+          triggerServo(pulse);
+        }
+      };
+
+      const absUs = pulse === "" ? "-" : Math.min(2400, Math.max(544, offset + (pulse - 1500)));
+
+      return (
+        <div className={`p-4 rounded border transition-all duration-300 flex flex-col justify-between ${isTesting ? 'bg-amber-500/10 border-amber-500 glow-amber scale-[1.02]' : 'bg-slate-900/50 border-slate-800'}`}>
+          <div className="flex justify-between items-start mb-3">
+            <div>
+              <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest block">Servo #{id}</span>
+              <span className="text-sm font-semibold text-white">{label}</span>
+            </div>
+            <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${isTesting ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-800 text-slate-400'}`}>
+              {pulse === "" ? "-" : `${pulse}µs`} <span className="opacity-60 text-[9px]">(Abs: {pulse === "" ? "-" : `${absUs}µs`})</span>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 mb-3">
+            {[1200, 1500, 1800].map((val, i) => (
+              <button
+                key={val}
+                onClick={() => { lastPulseRef.current = val; triggerServo(val); }}
+                className={`flex-1 text-[10px] py-1 border rounded transition-all ${pulse === val ? 'bg-amber-500/20 border-amber-500/50 text-amber-300' : 'bg-slate-800/50 border-slate-700 hover:bg-slate-700 text-slate-400'}`}
+              >
+                {val}µs {presetLabels[i]}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 mt-1 bg-slate-950/60 p-2 rounded border border-slate-800/60">
+            <input 
+              type="range" 
+              min="1000" 
+              max="2000" 
+              value={pulse === "" ? lastPulseRef.current : pulse} 
+              onChange={(e) => setPulse(parseInt(e.target.value))}
+              onMouseUp={() => triggerServo(pulse)}
+              onTouchEnd={() => triggerServo(pulse)}
+              className="flex-1 accent-amber-500 h-1 bg-slate-800 rounded appearance-none cursor-pointer"
+            />
+            <input 
+              type="number" 
+              min="1000" 
+              max="2000" 
+              value={pulse} 
+              onChange={(e) => {
+                const val = parseInt(e.target.value);
+                if (!isNaN(val)) setPulse(val);
+                else setPulse("");
+              }}
+              onFocus={handleFocus}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') triggerServo(pulse);
+              }}
+              onBlur={handleBlur}
+              className="w-16 text-center bg-slate-900 border border-slate-700 rounded text-xs py-0.5 font-mono text-amber-400 focus:outline-none focus:border-amber-500"
+            />
+            <button 
+              onClick={() => triggerServo(pulse)}
+              className="px-2 py-0.5 bg-amber-600 hover:bg-amber-500 text-white rounded text-[10px] font-bold"
+            >
+              Set
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    function App() {
+      const [mqttStatus, setMqttStatus] = useState(false);
+      const [wifiStatus, setWifiStatus] = useState(false);
+      const [telemetry, setTelemetry] = useState({
+        battery: 0,
+        battery_pct: 0,
+        mode: 'OFFLINE'
+      });
+      const [testingComponent, setTestingComponent] = useState(null); // Muestra qué componente se está probando en este momento
+      const [isNearBottom, setIsNearBottom] = useState(false);
+
+      // Coreografía State y Timers
+      const [choroState, setChoroState] = useState({
+        active: false,
+        progress: 0,
+        logs: [],
+        subsystems: {
+          w1: 'STANDBY',
+          w3: 'STANDBY',
+          w4: 'STANDBY',
+          w6: 'STANDBY',
+          cam: 'STANDBY',
+          propulsion: 'STANDBY'
+        }
+      });
+      const choroTimersRef = useRef([]);
+      const choroIntervalRef = useRef(null);
+
+      const addChoroLog = (msg) => {
+        setChoroState(prev => ({
+          ...prev,
+          logs: [...prev.logs, `[${new Date().toLocaleTimeString()}] ${msg}`]
+        }));
+      };
+
+      const cancelChoreography = () => {
+        if (choroTimersRef.current.length > 0) {
+          choroTimersRef.current.forEach(t => clearTimeout(t));
+          choroTimersRef.current = [];
+        }
+        if (choroIntervalRef.current) {
+          clearInterval(choroIntervalRef.current);
+          choroIntervalRef.current = null;
+        }
+        setChoroState(prev => ({
+          ...prev,
+          active: false
+        }));
+      };
+
+      const startFullChoreography = () => {
+        cancelChoreography();
+
+        if (!clientRef.current || !clientRef.current.isConnected()) {
+          alert("Error: No hay conexión con el Broker MQTT. No se puede iniciar la coreografía.");
+          return;
+        }
+
+        // Inicializar estado
+        setChoroState({
+          active: true,
+          progress: 0,
+          logs: [],
+          subsystems: {
+            w1: 'STANDBY',
+            w3: 'STANDBY',
+            w4: 'STANDBY',
+            w6: 'STANDBY',
+            cam: 'STANDBY',
+            propulsion: 'STANDBY'
+          }
+        });
+
+        // Retrasamos un instante el primer log para asegurar que React limpie y cree el array
+        setTimeout(() => {
+          addChoroLog("[SISTEMA] Iniciando Protocolo de Diagnóstico Completo...");
+        }, 10);
+
+        const sendCmd = (payload) => {
+          if (clientRef.current && clientRef.current.isConnected()) {
+            const message = new Paho.MQTT.Message(JSON.stringify(payload));
+            message.destinationName = "rover/test";
+            clientRef.current.send(message);
+          }
+        };
+
+        // Progreso fluido
+        const startTime = Date.now();
+        const duration = 10400; // 10.4s total (Ida 1 + Vuelta 1 + Ida 2 + Vuelta 2)
+        choroIntervalRef.current = setInterval(() => {
+          const elapsed = Date.now() - startTime;
+          const pct = Math.min(100, Math.round((elapsed / duration) * 100));
+          setChoroState(prev => ({ ...prev, progress: pct }));
+          if (elapsed >= duration) {
+            clearInterval(choroIntervalRef.current);
+          }
+        }, 50);
+
+        // ==================== BARRIDO PAN INDEPENDIENTE ====================
+        // Usa posiciones ABSOLUTAS (moveTo) para eliminar errores acumulativos.
+        // Primero marca la posición actual como HOME (0), luego se mueve a
+        // posiciones absolutas: -400 (izq) → +400 (der) → 0 (centro).
+
+        // t = 40ms: Marcar posición actual como HOME (referencia 0)
+        const panHome = setTimeout(() => {
+          sendCmd({ type: "stepper", home: true });
+        }, 40);
+        choroTimersRef.current.push(panHome);
+
+        // t = 50ms: Ir a posición -400 (izquierda)
+        const panT0 = setTimeout(() => {
+          addChoroLog("[CÁMARA] Barrido PAN iniciado: Girando a la izquierda.");
+          sendCmd({ type: "stepper", target: -400 });
+          setChoroState(prev => ({
+            ...prev,
+            subsystems: { ...prev.subsystems, cam: 'PAN_BARRIDO' }
+          }));
+        }, 50);
+        choroTimersRef.current.push(panT0);
+
+        // t = 2200ms: Ir a posición +400 (derecha)
+        const panT1 = setTimeout(() => {
+          addChoroLog("[CÁMARA] Barrido PAN: Girando todo a la derecha.");
+          sendCmd({ type: "stepper", target: 400 });
+        }, 2200);
+        choroTimersRef.current.push(panT1);
+
+        // t = 5200ms: Retornar a posición 0 (centro)
+        const panT2 = setTimeout(() => {
+          addChoroLog("[CÁMARA] Barrido PAN: Retornando al centro.");
+          sendCmd({ type: "stepper", target: 0 });
+        }, 5200);
+        choroTimersRef.current.push(panT2);
+
+        // t = 7000ms: Finalizar barrido del PAN
+        const panT3 = setTimeout(() => {
+          addChoroLog("[CÁMARA] Barrido PAN completado.");
+          setChoroState(prev => ({
+            ...prev,
+            subsystems: { ...prev.subsystems, cam: 'TILT_ARRIBA' }
+          }));
+        }, 7000);
+        choroTimersRef.current.push(panT3);
+
+        // ==================== ONDAS 1 & 2 ====================
+
+        // runIda: schedules the 6-step forward wave starting at times[0]
+        const runIda = (times, waveN) => {
+          // Step 0 — W1 (doubles as cleanup from previous vuelta when waveN > 1)
+          const s0 = setTimeout(() => {
+            if (waveN > 1) {
+              addChoroLog(`[ESTRUCTURA] Centrando servos W1 y W3 de la onda ${waveN - 1}.`);
+              addChoroLog(`[TRACCIÓN] Deteniendo W1 (Vuelta). Onda de vuelta ${waveN - 1} completada.`);
+              sendCmd({ type: "servo", id: "1", us: 1430 });
+              sendCmd({ type: "servo", id: "3", us: 1478 });
+              sendCmd({ type: "motor", id: 1, dir: 0 });
+            }
+            addChoroLog(`[ESTRUCTURA] Onda de ida ${waveN}: Servo W1 girando a la derecha (1130µs).`);
+            addChoroLog(`[TRACCIÓN] Girando motor tracción FL (W1) Adelante.`);
+            sendCmd({ type: "servo", id: "1", us: 1130 });
+            sendCmd({ type: "motor", id: 1, dir: 1, speed: 180, duration: 400, stopOthers: false });
+            setChoroState(prev => ({ ...prev, subsystems: { ...prev.subsystems, w1: 'TEST_IDA', w3: waveN > 1 ? 'OK' : prev.subsystems.w3, propulsion: 'W1_ADELANTE' } }));
+          }, times[0]);
+          choroTimersRef.current.push(s0);
+
+          // Step 1 — W2
+          const s1 = setTimeout(() => {
+            addChoroLog("[ESTRUCTURA] Manteniendo servo W1 girado.");
+            addChoroLog("[TRACCIÓN] Deteniendo W1. Girando motor central ML (W2) Adelante.");
+            sendCmd({ type: "motor", id: 1, dir: 0 });
+            sendCmd({ type: "motor", id: 2, dir: 1, speed: 180, duration: 400, stopOthers: false });
+            setChoroState(prev => ({ ...prev, subsystems: { ...prev.subsystems, propulsion: 'W2_ADELANTE' } }));
+          }, times[1]);
+          choroTimersRef.current.push(s1);
+
+          // Step 2 — W3
+          const s2 = setTimeout(() => {
+            addChoroLog("[ESTRUCTURA] Servo W3 girando a la derecha (1178µs).");
+            addChoroLog("[TRACCIÓN] Deteniendo W2. Girando motor tracción BL (W3) Adelante.");
+            sendCmd({ type: "motor", id: 2, dir: 0 });
+            sendCmd({ type: "servo", id: "3", us: 1178 });
+            sendCmd({ type: "motor", id: 3, dir: 1, speed: 180, duration: 400, stopOthers: false });
+            setChoroState(prev => ({ ...prev, subsystems: { ...prev.subsystems, w3: 'TEST_IDA', propulsion: 'W3_ADELANTE' } }));
+          }, times[2]);
+          choroTimersRef.current.push(s2);
+
+          // Step 3 — W4
+          const s3 = setTimeout(() => {
+            addChoroLog("[ESTRUCTURA] Centrando servo W1. Servo W4 girando a la derecha (1223µs).");
+            addChoroLog("[TRACCIÓN] Deteniendo W3. Girando motor tracción FR (W4) Adelante.");
+            sendCmd({ type: "servo", id: "1", us: 1430 });
+            sendCmd({ type: "motor", id: 3, dir: 0 });
+            sendCmd({ type: "servo", id: "4", us: 1223 });
+            sendCmd({ type: "motor", id: 4, dir: 1, speed: 180, duration: 400, stopOthers: false });
+            setChoroState(prev => ({ ...prev, subsystems: { ...prev.subsystems, w1: 'OK', w4: 'TEST_IDA', propulsion: 'W4_ADELANTE' } }));
+          }, times[3]);
+          choroTimersRef.current.push(s3);
+
+          // Step 4 — W5
+          const s4 = setTimeout(() => {
+            addChoroLog("[ESTRUCTURA] Manteniendo servo W4 girado.");
+            addChoroLog("[TRACCIÓN] Deteniendo W4. Girando motor central MR (W5) Adelante.");
+            sendCmd({ type: "motor", id: 4, dir: 0 });
+            sendCmd({ type: "motor", id: 5, dir: 1, speed: 180, duration: 400, stopOthers: false });
+            setChoroState(prev => ({ ...prev, subsystems: { ...prev.subsystems, propulsion: 'W5_ADELANTE' } }));
+          }, times[4]);
+          choroTimersRef.current.push(s4);
+
+          // Step 5 — W6
+          const s5 = setTimeout(() => {
+            addChoroLog("[ESTRUCTURA] Centrando servo W3. Servo W6 girando a la derecha (1222µs).");
+            addChoroLog("[TRACCIÓN] Deteniendo W5. Girando motor tracción BR (W6) Adelante.");
+            sendCmd({ type: "servo", id: "3", us: 1478 });
+            sendCmd({ type: "motor", id: 5, dir: 0 });
+            sendCmd({ type: "servo", id: "6", us: 1222 });
+            sendCmd({ type: "motor", id: 6, dir: 1, speed: 180, duration: 400, stopOthers: false });
+            setChoroState(prev => ({ ...prev, subsystems: { ...prev.subsystems, w3: 'OK', w6: 'TEST_IDA', propulsion: 'W6_ADELANTE' } }));
+          }, times[5]);
+          choroTimersRef.current.push(s5);
+        };
+
+        // runVuelta: schedules the 6-step return wave starting at times[0]
+        const runVuelta = (times, waveN) => {
+          // Step 0 — W6 (cleanup + start return)
+          const s0 = setTimeout(() => {
+            addChoroLog(`[ESTRUCTURA] Centrando servos W4 y W6 de la onda ${waveN}.`);
+            addChoroLog(`[TRACCIÓN] Deteniendo W6 (Ida). Onda de ida ${waveN} completada.`);
+            addChoroLog(`[ESTRUCTURA] Onda de vuelta ${waveN}: Servo W6 girando a la izquierda (1822µs).`);
+            addChoroLog("[TRACCIÓN] Girando motor tracción BR (W6) Atrás.");
+            addChoroLog("[CÁMARA] Bajando pitch de cámara.");
+            sendCmd({ type: "servo", id: "4", us: 1523 });
+            sendCmd({ type: "servo", id: "6", us: 1522 });
+            sendCmd({ type: "motor", id: 6, dir: 0 });
+            sendCmd({ type: "servo", id: "6", us: 1822 });
+            sendCmd({ type: "motor", id: 6, dir: -1, speed: 180, duration: 400, stopOthers: false });
+            sendCmd({ type: "servo", id: "cam", us: 1172 });
+            setChoroState(prev => ({ ...prev, subsystems: { ...prev.subsystems, w4: 'OK', w6: 'TEST_VUELTA', cam: 'TILT_ABAJO', propulsion: 'W6_ATRÁS' } }));
+          }, times[0]);
+          choroTimersRef.current.push(s0);
+
+          // Step 1 — W5
+          const s1 = setTimeout(() => {
+            addChoroLog("[ESTRUCTURA] Manteniendo servo W6 girado.");
+            addChoroLog("[TRACCIÓN] Deteniendo W6. Girando motor central MR (W5) Atrás.");
+            sendCmd({ type: "motor", id: 6, dir: 0 });
+            sendCmd({ type: "motor", id: 5, dir: -1, speed: 180, duration: 400, stopOthers: false });
+            setChoroState(prev => ({ ...prev, subsystems: { ...prev.subsystems, propulsion: 'W5_ATRÁS' } }));
+          }, times[1]);
+          choroTimersRef.current.push(s1);
+
+          // Step 2 — W4
+          const s2 = setTimeout(() => {
+            addChoroLog("[ESTRUCTURA] Servo W4 girando a la izquierda (1823µs).");
+            addChoroLog("[TRACCIÓN] Deteniendo W5. Girando motor tracción FR (W4) Atrás.");
+            sendCmd({ type: "motor", id: 5, dir: 0 });
+            sendCmd({ type: "servo", id: "4", us: 1823 });
+            sendCmd({ type: "motor", id: 4, dir: -1, speed: 180, duration: 400, stopOthers: false });
+            setChoroState(prev => ({ ...prev, subsystems: { ...prev.subsystems, w4: 'TEST_VUELTA', propulsion: 'W4_ATRÁS' } }));
+          }, times[2]);
+          choroTimersRef.current.push(s2);
+
+          // Step 3 — W3
+          const s3 = setTimeout(() => {
+            addChoroLog("[ESTRUCTURA] Centrando servo W6. Servo W3 girando a la izquierda (1778µs).");
+            addChoroLog("[TRACCIÓN] Deteniendo W4. Girando motor tracción BL (W3) Atrás.");
+            sendCmd({ type: "servo", id: "6", us: 1522 });
+            sendCmd({ type: "motor", id: 4, dir: 0 });
+            sendCmd({ type: "servo", id: "3", us: 1778 });
+            sendCmd({ type: "motor", id: 3, dir: -1, speed: 180, duration: 400, stopOthers: false });
+            setChoroState(prev => ({ ...prev, subsystems: { ...prev.subsystems, w6: 'OK', w3: 'TEST_VUELTA', propulsion: 'W3_ATRÁS' } }));
+          }, times[3]);
+          choroTimersRef.current.push(s3);
+
+          // Step 4 — W2
+          const s4 = setTimeout(() => {
+            addChoroLog("[ESTRUCTURA] Manteniendo servo W3 girado.");
+            addChoroLog("[TRACCIÓN] Deteniendo W3. Girando motor central ML (W2) Atrás.");
+            sendCmd({ type: "motor", id: 3, dir: 0 });
+            sendCmd({ type: "motor", id: 2, dir: -1, speed: 180, duration: 400, stopOthers: false });
+            setChoroState(prev => ({ ...prev, subsystems: { ...prev.subsystems, propulsion: 'W2_ATRÁS' } }));
+          }, times[4]);
+          choroTimersRef.current.push(s4);
+
+          // Step 5 — W1
+          const s5 = setTimeout(() => {
+            addChoroLog("[ESTRUCTURA] Centrando servo W4. Servo W1 girando a la izquierda (1730µs).");
+            addChoroLog("[TRACCIÓN] Deteniendo W2. Girando motor tracción FL (W1) Atrás.");
+            addChoroLog("[CÁMARA] Subiendo pitch de cámara.");
+            sendCmd({ type: "servo", id: "4", us: 1523 });
+            sendCmd({ type: "motor", id: 2, dir: 0 });
+            sendCmd({ type: "servo", id: "1", us: 1730 });
+            sendCmd({ type: "motor", id: 1, dir: -1, speed: 180, duration: 400, stopOthers: false });
+            sendCmd({ type: "servo", id: "cam", us: 1772 });
+            setChoroState(prev => ({ ...prev, subsystems: { ...prev.subsystems, w4: 'OK', w1: 'TEST_VUELTA', cam: 'TILT_ARRIBA', propulsion: 'W1_ATRÁS' } }));
+          }, times[5]);
+          choroTimersRef.current.push(s5);
+        };
+
+        runIda(    [50, 400, 800, 1200, 1600, 2000], 1);
+        runVuelta([2400, 2800, 3200, 3600, 4000, 4400], 1);
+        runIda(  [4800, 5200, 5600, 6000, 6400, 6800], 2);
+        runVuelta([7200, 7600, 8000, 8400, 8800, 9200], 2);
+
+        // t = 9600ms : Finalización de Movimientos
+        const t24 = setTimeout(() => {
+          addChoroLog("[ESTRUCTURA] Centrando servos W1 y W3. Todos los servos alineados.");
+          addChoroLog("[TRACCIÓN] Deteniendo W1. Onda de vuelta 2 completada.");
+          addChoroLog("[CÁMARA] Retornando tilt a posición neutra.");
+
+          sendCmd({ type: "servo", id: "1", us: 1430 });
+          sendCmd({ type: "servo", id: "3", us: 1478 });
+          sendCmd({ type: "motor", id: 1, dir: 0 });
+          sendCmd({ type: "servo", id: "cam", us: 1472 }); // Tilt neutro
+
+          setChoroState(prev => ({
+            ...prev,
+            subsystems: {
+              w1: 'OK', w3: 'OK', w4: 'OK', w6: 'OK',
+              cam: 'OK', propulsion: 'STANDBY'
+            }
+          }));
+        }, 9600);
+        choroTimersRef.current.push(t24);
+
+        // t = 10100ms : Cierre de seguridad
+        const t25 = setTimeout(() => {
+          addChoroLog("[SISTEMA] Secuencia de diagnóstico completada con éxito. Todos los sistemas ONLINE.");
+          
+          if (clientRef.current && clientRef.current.isConnected()) {
+            const message = new Paho.MQTT.Message("STOP");
+            message.destinationName = "rover/cmd";
+            clientRef.current.send(message);
+          }
+        }, 10100);
+        choroTimersRef.current.push(t25);
+
+        // t = 10400ms : Cerrar Overlay
+        const t26 = setTimeout(() => {
+          setChoroState(prev => ({ ...prev, active: false }));
+        }, 10400);
+        choroTimersRef.current.push(t26);
+      };
+
+      useEffect(() => {
+        const handleScroll = () => {
+          const threshold = document.documentElement.scrollHeight * 0.4;
+          if (window.scrollY > threshold) {
+            setIsNearBottom(true);
+          } else {
+            setIsNearBottom(false);
+          }
+        };
+        window.addEventListener("scroll", handleScroll);
+        return () => window.removeEventListener("scroll", handleScroll);
+      }, []);
+
+      const clientRef = useRef(null);
+      const wifiTimerRef = useRef(null);
+
+      // Conexión MQTT idéntica al Command Center principal
+      useEffect(() => {
+        const { HOST, PORT, PATH, USERNAME, PASSWORD } = window.MQTT_CONFIG;
+        const CLIENT_ID = "TestDeck_" + Math.random().toString(16).substr(2, 8);
+
+        console.log(`[MQTT TEST] Connecting to ${HOST}:${PORT}${PATH} as ${CLIENT_ID}...`);
+
+        const client = new Paho.MQTT.Client(HOST, PORT, PATH, CLIENT_ID);
+        clientRef.current = client;
+
+        const onConnect = () => {
+          console.log("[MQTT TEST] Connected!");
+          setMqttStatus(true);
+          client.subscribe("rover/status");
+          client.subscribe("rover/telemetry");
+        };
+
+        const onConnectionLost = (responseObject) => {
+          console.warn("[MQTT TEST] Connection Lost:", responseObject.errorMessage);
+          setMqttStatus(false);
+          setWifiStatus(false);
+        };
+
+        const onMessageArrived = (message) => {
+          const topic = message.destinationName;
+          let payload;
+          let isJson = true;
+
+          try {
+            payload = JSON.parse(message.payloadString);
+          } catch (e) {
+            isJson = false;
+            payload = message.payloadString;
+          }
+
+          if (topic === "rover/telemetry" || topic === "rover/status") {
+            setWifiStatus(true);
+            if (wifiTimerRef.current) clearTimeout(wifiTimerRef.current);
+            wifiTimerRef.current = setTimeout(() => setWifiStatus(false), 2200);
+          }
+
+          if (topic === "rover/telemetry" && isJson) {
+            setTelemetry(prev => ({ ...prev, ...payload }));
+          }
+        };
+
+        client.onConnectionLost = onConnectionLost;
+        client.onMessageArrived = onMessageArrived;
+
+        const options = {
+          useSSL: true,
+          userName: USERNAME,
+          password: PASSWORD,
+          keepAliveInterval: 20,
+          onSuccess: onConnect,
+          onFailure: (e) => {
+            console.error("[MQTT TEST] Connection Failed:", e);
+            setMqttStatus(false);
+          }
+        };
+
+        try {
+          client.connect(options);
+        } catch (e) {
+          console.error("[MQTT TEST] Client Init Error:", e);
+        }
+
+        return () => {
+          if (client.isConnected()) {
+            console.log("[MQTT TEST] Disconnecting...");
+            client.disconnect();
+          }
+          // Limpiar timers de coreografía
+          if (choroTimersRef.current) {
+            choroTimersRef.current.forEach(t => clearTimeout(t));
+          }
+          if (choroIntervalRef.current) {
+            clearInterval(choroIntervalRef.current);
+          }
+        };
+      }, []);
+
+      // Publicar comandos de testeo por MQTT
+      const sendTestCommand = (payload, name) => {
+        if (clientRef.current && clientRef.current.isConnected()) {
+          const message = new Paho.MQTT.Message(JSON.stringify(payload));
+          message.destinationName = "rover/test";
+          clientRef.current.send(message);
+          
+          setTestingComponent(name);
+          // Si es un motor, se apaga automáticamente a los 1.5s
+          if (payload.type === 'motor' && payload.dir !== 0) {
+            setTimeout(() => {
+              setTestingComponent(prev => prev === name ? null : prev);
+            }, payload.duration || 1500);
+          } else {
+            // Para servos/steppers limpiamos el indicador de test activo tras 1.2s
+            setTimeout(() => {
+              setTestingComponent(prev => prev === name ? null : prev);
+            }, 1200);
+          }
+        } else {
+          alert("Error: No hay conexión con el Broker MQTT. No se puede enviar el comando.");
+        }
+      };
+
+      const sendStopAll = () => {
+        cancelChoreography();
+        if (clientRef.current && clientRef.current.isConnected()) {
+          const message = new Paho.MQTT.Message("STOP");
+          message.destinationName = "rover/cmd";
+          clientRef.current.send(message);
+          setTestingComponent("PARADA COMPLETA");
+          setTimeout(() => setTestingComponent(null), 1500);
+        }
+      };
+
+      return (
+        <div className="flex flex-col h-full min-h-screen relative">
+          <NavBar basePath="./" isDashboard={false} />
+
+          <main className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-6 lg:p-8 animate-fadeInUp">
+            
+            {/* Header Area */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-8 border-b border-slate-800 pb-6">
+              <div>
+                <h1 className="text-3xl md:text-4xl font-bold text-white flex items-center gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-amber-500"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                  <span>Rover <span className="text-amber-500 font-mono">Test Deck</span></span>
+                </h1>
+                <p className="text-slate-400 text-sm md:text-base mt-1">Consola interactiva de diagnóstico físico de componentes en tiempo real por MQTT.</p>
+              </div>
+
+              {/* Botones de Control Superiores */}
+              <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
+                {/* Botón Test Completo */}
+                <button
+                  onClick={startFullChoreography}
+                  className="w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 active:scale-[0.98] border border-amber-500/20 rounded text-sm font-bold text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-950/20 group select-none animate-pulse-subtle"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:scale-110 transition-transform"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  <span>TEST COMPLETO</span>
+                </button>
+
+                {/* Botón de retorno al Centro de Mando */}
+                <a 
+                  href="control.html" 
+                  className="w-full sm:w-auto btn-test-action-active px-5 py-3 text-sm font-semibold flex items-center justify-center gap-2 group hover:scale-[1.02] active:scale-[0.98] transition-all"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-hover:-translate-x-1"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                  <span>VOLVER AL CENTRO DE MANDO</span>
+                </a>
+                <a
+                  href="calibracion.html"
+                  className="w-full sm:w-auto px-5 py-3 bg-violet-700/20 hover:bg-violet-700/40 active:scale-[0.98] border border-violet-500/30 rounded text-sm font-semibold text-violet-300 transition-all flex items-center justify-center gap-2 group"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:rotate-12 transition-transform"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+                  <span>CALIBRACIÓN</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Quick Status Bar */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+              <div className="glass-card flex items-center justify-between py-4 px-5">
+                <span className="text-xs text-slate-500 font-mono tracking-widest uppercase">MQTT Broker</span>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2.5 h-2.5 rounded-sm ${mqttStatus ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'}`}></span>
+                  <span className="font-mono text-xs font-bold">{mqttStatus ? 'CONECTADO' : 'DESCONECTADO'}</span>
+                </div>
+              </div>
+              <div className="glass-card flex items-center justify-between py-4 px-5">
+                <span className="text-xs text-slate-500 font-mono tracking-widest uppercase">WiFi Devices</span>
+                <div className="flex flex-col items-end gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-sm ${wifiStatus ? 'bg-amber-500 animate-pulse' : 'bg-slate-700'}`}></span>
+                    <span className="font-mono text-xs font-bold">{wifiStatus ? 'ONLINE' : 'OFFLINE'}</span>
+                  </div>
+                  {wifiStatus && (telemetry.ip || telemetry.ip_gps) && (
+                    <div className="flex flex-col items-end text-[10px] font-mono text-slate-400 gap-0.5">
+                      {telemetry.ip && <span>Rover: <span className="text-amber-400 font-bold">{telemetry.ip}</span></span>}
+                      {telemetry.ip_gps && <span>GPS: <span className="text-orange-400 font-bold">{telemetry.ip_gps}</span></span>}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="glass-card flex items-center justify-between py-4 px-5">
+                <span className="text-xs text-slate-500 font-mono tracking-widest uppercase">Modo Activo</span>
+                <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${telemetry.mode === 'TEST' ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-800 text-slate-400'}`}>
+                  {telemetry.mode || 'DESCONOCIDO'}
+                </span>
+              </div>
+              <div className="glass-card flex items-center justify-between py-4 px-5">
+                <span className="text-xs text-slate-500 font-mono tracking-widest uppercase">Batería LiPo</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold">{telemetry.battery.toFixed(2)}V</span>
+                  <span className="text-xs text-slate-500 font-mono">({telemetry.battery_pct}%)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* PANEL DE SEGURIDAD Y PARADA FLOTANTE (SIEMPRE VISIBLE) */}
+            <div 
+              className="fixed bottom-6 right-6 z-[999] flex flex-col sm:flex-row items-center gap-4 bg-slate-950/95 backdrop-blur-xl border border-rose-500/30 p-4 rounded shadow-[0_10px_35px_rgba(244,63,94,0.18)] w-[90%] sm:w-auto max-w-sm transition-transform duration-300 ease-in-out"
+              style={{ transform: isNearBottom ? 'translateY(calc(-100vh + 220px))' : 'translateY(0)' }}
+            >
+              <div className="flex items-center gap-3 pr-2">
+                <span className="relative flex h-3 w-3 shrink-0">
+                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-sm opacity-75 ${testingComponent || choroState.active ? 'bg-amber-400' : 'bg-rose-400'}`}></span>
+                  <span className={`relative inline-flex rounded-sm h-3 w-3 ${testingComponent || choroState.active ? 'bg-amber-500' : 'bg-rose-500'}`}></span>
+                </span>
+                <div className="text-left font-mono">
+                  <h4 className={`text-[10px] font-bold uppercase tracking-wider ${testingComponent || choroState.active ? 'text-amber-400' : 'text-rose-400'}`}>
+                    {choroState.active ? 'COREOGRAFÍA' : testingComponent ? 'TEST EN CURSO' : 'MODO TEST'}
+                  </h4>
+                  <p className="text-[9px] text-slate-400 leading-snug truncate max-w-[150px]">
+                    {choroState.active ? 'Secuencia en Curso' : testingComponent ? testingComponent : 'Freno de emergencia listo'}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={sendStopAll}
+                className="w-full sm:w-auto px-4 py-2.5 bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-bold rounded transition-all shadow-md shadow-rose-950/20 uppercase tracking-widest text-[10px] border border-rose-500 flex items-center justify-center gap-1.5 shrink-0"
+              >
+                <span>🚨</span>
+                <span>DETENER TODO</span>
+              </button>
+            </div>
+
+            {/* ESQUEMA FÍSICO INTERACTIVO DEL ROVER */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              
+              {/* COLUMNA 1: LADO IZQUIERDO DEL ROVER */}
+              <div className="space-y-6">
+                <h2 className="text-lg font-bold text-slate-400 border-b border-slate-800 pb-2 font-mono uppercase tracking-wider flex items-center gap-2">
+                  <span className="w-1.5 h-3 bg-blue-500 rounded-sm"></span>
+                  Lado Izquierdo (Lateral Derecho ESP32)
+                </h2>
+                
+                {/* Delantero Izquierdo */}
+                <div className="space-y-3 p-4 bg-slate-900/30 border border-slate-800/80 rounded">
+                  <h3 className="text-xs font-mono font-bold text-slate-500 uppercase tracking-widest">Delantera Izquierda</h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    <MotorCard id={1} name="Motor FL (W1)" label="Motor Tracción FL (W1)" isTesting={testingComponent === "Motor FL (W1)"} sendTestCommand={sendTestCommand} />
+                    <ServoCard id={1} name="Servo FL (W1)" label="Servo Dirección FL (W1)" offset={1430} isTesting={testingComponent === "Servo FL (W1)"} sendTestCommand={sendTestCommand} />
+                  </div>
+                </div>
+
+                {/* Medio Izquierdo */}
+                <div className="space-y-3 p-4 bg-slate-900/30 border border-slate-800/80 rounded">
+                  <h3 className="text-xs font-mono font-bold text-slate-500 uppercase tracking-widest">Medio Izquierda</h3>
+                  <MotorCard id={2} name="Motor ML (W2)" label="Motor Tracción ML (W2)" isTesting={testingComponent === "Motor ML (W2)"} sendTestCommand={sendTestCommand} />
+                </div>
+
+                {/* Trasero Izquierdo */}
+                <div className="space-y-3 p-4 bg-slate-900/30 border border-slate-800/80 rounded">
+                  <h3 className="text-xs font-mono font-bold text-slate-500 uppercase tracking-widest">Trasera Izquierda</h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    <MotorCard id={3} name="Motor BL (W3)" label="Motor Tracción BL (W3)" isTesting={testingComponent === "Motor BL (W3)"} sendTestCommand={sendTestCommand} />
+                    <ServoCard id={3} name="Servo BL (W3)" label="Servo Dirección BL (W3)" offset={1478} isTesting={testingComponent === "Servo BL (W3)"} sendTestCommand={sendTestCommand} />
+                  </div>
+                </div>
+              </div>
+
+              {/* COLUMNA 2: TORRETA CÁMARA & CONTROL GENERAL */}
+              <div className="space-y-6">
+                <h2 className="text-lg font-bold text-slate-400 border-b border-slate-800 pb-2 font-mono uppercase tracking-wider flex items-center gap-2">
+                  <span className="w-1.5 h-3 bg-amber-500 rounded-sm"></span>
+                  Mástil de Cámara y Central
+                </h2>
+
+                {/* Torreta de Cámara */}
+                <div className="p-5 bg-slate-900/40 border border-slate-800 rounded space-y-5">
+                  <div className="flex justify-between items-center border-b border-slate-800/50 pb-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-white">Torreta de Exploración</h3>
+                      <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">Pan Stepper & Tilt Servo</span>
+                    </div>
+                    <span className="w-2 h-2 rounded-sm bg-amber-500 animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.5)]"></span>
+                  </div>
+
+                  {/* Stepper Pan */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs font-mono text-slate-400">
+                      <span>Pan Cámara (NEMA 17)</span>
+                      <span>GPIO 23/15</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => sendTestCommand({ type: "stepper", steps: 100, dir: 1 }, "Cámara Gira Derecha")}
+                        className="btn-test-action flex-1"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                        <span>Girar Der</span>
+                      </button>
+                      <button 
+                        onClick={() => sendTestCommand({ type: "stepper", steps: 100, dir: -1 }, "Cámara Gira Izquierda")}
+                        className="btn-test-action flex-1"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                        <span>Girar Izq</span>
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Tilt Cámara */}
+                <ServoCard id="cam" name="Cámara Tilt" label="Tilt Cámara (Servo - GPIO 22)" offset={1472} presetLabels={["(Abajo)", "(Frente)", "(Arriba)"]} isTesting={testingComponent === "Cámara Tilt"} sendTestCommand={sendTestCommand} />
+              </div>
+
+              {/* COLUMNA 3: LADO DERECHO DEL ROVER */}
+              <div className="space-y-6">
+                <h2 className="text-lg font-bold text-slate-400 border-b border-slate-800 pb-2 font-mono uppercase tracking-wider flex items-center gap-2">
+                  <span className="w-1.5 h-3 bg-red-500 rounded-sm"></span>
+                  Lado Derecho (Lateral Izquierdo ESP32)
+                </h2>
+
+                {/* Delantero Derecho */}
+                <div className="space-y-3 p-4 bg-slate-900/30 border border-slate-800/80 rounded">
+                  <h3 className="text-xs font-mono font-bold text-slate-500 uppercase tracking-widest">Delantera Derecha</h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    <MotorCard id={4} name="Motor FR (W4)" label="Motor Tracción FR (W4)" isTesting={testingComponent === "Motor FR (W4)"} sendTestCommand={sendTestCommand} />
+                    <ServoCard id={4} name="Servo FR (W4)" label="Servo Dirección FR (W4)" offset={1523} isTesting={testingComponent === "Servo FR (W4)"} sendTestCommand={sendTestCommand} />
+                  </div>
+                </div>
+
+                {/* Medio Derecho */}
+                <div className="space-y-3 p-4 bg-slate-900/30 border border-slate-800/80 rounded">
+                  <h3 className="text-xs font-mono font-bold text-slate-500 uppercase tracking-widest">Medio Derecha</h3>
+                  <MotorCard id={5} name="Motor MR (W5)" label="Motor Tracción MR (W5)" isTesting={testingComponent === "Motor MR (W5)"} sendTestCommand={sendTestCommand} />
+                </div>
+
+                {/* Trasero Derecho */}
+                <div className="space-y-3 p-4 bg-slate-900/30 border border-slate-800/80 rounded">
+                  <h3 className="text-xs font-mono font-bold text-slate-500 uppercase tracking-widest">Trasera Derecha</h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    <MotorCard id={6} name="Motor BR (W6)" label="Motor Tracción BR (W6)" isTesting={testingComponent === "Motor BR (W6)"} sendTestCommand={sendTestCommand} />
+                    <ServoCard id={6} name="Servo BR (W6)" label="Servo Dirección BR (W6)" offset={1522} isTesting={testingComponent === "Servo BR (W6)"} sendTestCommand={sendTestCommand} />
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+          </main>
+
+          {/* Fullscreen HUD Diagnostic Overlay */}
+          {choroState.active && (
+            <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/90 backdrop-blur-md transition-all duration-300 font-['Outfit'] select-none">
+              {/* Grid Background */}
+              <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-25"></div>
+              
+              {/* Tech scanline effect */}
+              <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[size:100%_4px,3px_100%] pointer-events-none opacity-40"></div>
+
+              <div className="relative w-full max-w-5xl h-[85vh] bg-slate-950/85 border-2 border-amber-500/30 rounded overflow-hidden shadow-[0_0_50px_rgba(245,158,11,0.2)] flex flex-col m-4 animate-scaleUp">
+                {/* HUD Header */}
+                <div className="flex items-center justify-between border-b border-amber-500/20 px-6 py-4 bg-slate-900/40 backdrop-blur-md">
+                  <div className="flex items-center gap-3">
+                    <span className="relative flex h-3.5 w-3.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-sm bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-sm h-3.5 w-3.5 bg-amber-500"></span>
+                    </span>
+                    <div>
+                      <h2 className="text-sm font-bold tracking-widest text-amber-500 uppercase font-mono flex items-center gap-2">
+                        <span>[</span> DIAGNÓSTICO DE COMPONENTES ACTIVO <span>]</span>
+                      </h2>
+                      <p className="text-[10px] text-slate-400 font-mono tracking-wider">Rover Diagnostic Sequence v2.4 // Auto-Calibration</p>
+                    </div>
+                  </div>
+
+                  {/* Circular Progress & Pct */}
+                  <div className="flex items-center gap-4">
+                    <div className="relative flex items-center justify-center w-12 h-12">
+                      <svg className="w-full h-full transform -rotate-90">
+                        <circle cx="24" cy="24" r="20" className="text-slate-800" strokeWidth="3.5" fill="transparent" stroke="currentColor" />
+                        <circle cx="24" cy="24" r="20" className="text-amber-500 transition-all duration-100" strokeWidth="3.5" fill="transparent" strokeDasharray={2 * Math.PI * 20} strokeDashoffset={2 * Math.PI * 20 * (1 - choroState.progress / 100)} stroke="currentColor" strokeLinecap="round" />
+                      </svg>
+                      <span className="absolute text-[10px] font-mono font-bold text-amber-400">{choroState.progress}%</span>
+                    </div>
+                    <button
+                      onClick={cancelChoreography}
+                      className="px-4 py-2 bg-rose-600/20 hover:bg-rose-600/30 active:scale-95 border border-rose-500/40 rounded text-xs font-bold text-rose-400 transition-all tracking-wider uppercase font-mono shadow-md shadow-rose-950/20"
+                    >
+                      ABORTAR TEST
+                    </button>
+                  </div>
+                </div>
+
+                {/* HUD Content Area */}
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+                  {/* Left Side: Subsystems Status Grid */}
+                  <div className="lg:col-span-5 border-r border-amber-500/10 p-6 flex flex-col gap-4 overflow-y-auto bg-slate-900/10">
+                    <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-2 border-b border-slate-800/80 pb-2">
+                      Estado de Subcomponentes
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 gap-3">
+                      {[
+                        { label: "Dirección FL (W1)", val: choroState.subsystems.w1, color: choroState.subsystems.w1 === 'OK' ? 'text-amber-400 border-amber-500/20 bg-amber-500/5' : choroState.subsystems.w1 === 'STANDBY' ? 'text-slate-500 border-slate-800 bg-slate-900/20' : 'text-amber-400 border-amber-500/20 bg-amber-500/5' },
+                        { label: "Dirección BL (W3)", val: choroState.subsystems.w3, color: choroState.subsystems.w3 === 'OK' ? 'text-amber-400 border-amber-500/20 bg-amber-500/5' : choroState.subsystems.w3 === 'STANDBY' ? 'text-slate-500 border-slate-800 bg-slate-900/20' : 'text-amber-400 border-amber-500/20 bg-amber-500/5' },
+                        { label: "Dirección FR (W4)", val: choroState.subsystems.w4, color: choroState.subsystems.w4 === 'OK' ? 'text-amber-400 border-amber-500/20 bg-amber-500/5' : choroState.subsystems.w4 === 'STANDBY' ? 'text-slate-500 border-slate-800 bg-slate-900/20' : 'text-amber-400 border-amber-500/20 bg-amber-500/5' },
+                        { label: "Dirección BR (W6)", val: choroState.subsystems.w6, color: choroState.subsystems.w6 === 'OK' ? 'text-amber-400 border-amber-500/20 bg-amber-500/5' : choroState.subsystems.w6 === 'STANDBY' ? 'text-slate-500 border-slate-800 bg-slate-900/20' : 'text-amber-400 border-amber-500/20 bg-amber-500/5' },
+                        { label: "Mástil Cámara", val: choroState.subsystems.cam, color: choroState.subsystems.cam === 'OK' ? 'text-amber-400 border-amber-500/20 bg-amber-500/5' : choroState.subsystems.cam === 'STANDBY' ? 'text-slate-500 border-slate-800 bg-slate-900/20' : 'text-amber-400 border-amber-500/20 bg-amber-500/5' },
+                        { label: "Propulsión Rover", val: choroState.subsystems.propulsion, color: choroState.subsystems.propulsion === 'OK' ? 'text-amber-400 border-amber-500/20 bg-amber-500/5' : choroState.subsystems.propulsion === 'STANDBY' ? 'text-slate-500 border-slate-800 bg-slate-900/20' : 'text-amber-400 border-amber-500/20 bg-amber-500/5' },
+                      ].map((sub, idx) => (
+                        <div key={idx} className={`p-3 rounded border flex items-center justify-between transition-all duration-300 ${sub.color}`}>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-semibold text-slate-300">{sub.label}</span>
+                            <span className="text-[9px] font-mono uppercase tracking-wider opacity-80 mt-0.5">{sub.val}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {sub.val !== 'OK' && sub.val !== 'STANDBY' ? (
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-sm bg-amber-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-sm h-2 w-2 bg-amber-500"></span>
+                              </span>
+                            ) : sub.val === 'OK' ? (
+                              <span className="w-2 h-2 rounded-sm bg-amber-500"></span>
+                            ) : (
+                              <span className="w-2 h-2 rounded-sm bg-slate-700"></span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Right Side: Log Console */}
+                  <div className="lg:col-span-7 p-6 flex flex-col overflow-hidden bg-black/40">
+                    <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-2 border-b border-slate-800/80 pb-2">
+                      Registro de Operaciones
+                    </h3>
+                    
+                    <div className="flex-1 bg-black/60 border border-slate-800/80 rounded p-4 font-mono text-xs text-amber-500/90 overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-amber-500/20 scrollbar-track-transparent">
+                      {choroState.logs.map((log, idx) => {
+                        let color = "text-amber-500/80";
+                        if (log.includes("[SISTEMA]")) color = "text-amber-400 font-bold";
+                        else if (log.includes("[CÁMARA]")) color = "text-orange-400/90";
+                        else if (log.includes("[ESTRUCTURA]")) color = "text-orange-400/90";
+                        else if (log.includes("[TRACCIÓN]")) color = "text-amber-400/90";
+                        
+                        return (
+                          <div key={idx} className={`${color} leading-relaxed select-text`}>
+                            {log}
+                          </div>
+                        );
+                      })}
+                      <div className="animate-pulse">_</div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* HUD Footer status line */}
+                <div className="border-t border-amber-500/10 px-6 py-2 bg-slate-900/30 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                  <span>SECURITY LEVEL: TEST DIAGNOSTIC</span>
+                  <span>BROKER CONTROLLER: MQTT WS CLIENT v3.1</span>
+                  <span>SYSTEM VOLTAGE: {telemetry.battery.toFixed(2)}V ({telemetry.battery_pct}%)</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+
+</html>

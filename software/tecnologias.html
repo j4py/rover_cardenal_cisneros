@@ -1,0 +1,168 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tecnologías Web | Rover Perseverance</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../style.css" />
+    <style type="text/tailwindcss">
+      @layer utilities {
+        .code-block {
+          @apply font-mono bg-slate-800/50 px-1.5 py-0.5 rounded text-orange-400 text-sm border border-slate-700/50;
+        }
+        .reasoning {
+          @apply block text-sm italic text-slate-500 mt-1 ml-2 pl-2 border-l-2 border-slate-700;
+        }
+      }
+    </style>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
+    <script type="text/babel" src="../components/NavBar.js?v=2.2"></script> 
+  </head>
+  <body class="bg-slate-950 text-slate-200 font-sans min-h-screen selection:bg-orange-500/30">
+    <div id="root"></div>
+    <script type="text/babel">
+      function App() {
+        return (
+          <div className="flex flex-col min-h-screen">
+            <NavBar basePath="../" />
+            
+            <div className="max-w-4xl mx-auto px-4 py-8 md:py-12 w-full flex-1">
+              <header className="mb-12 border-b border-slate-800 pb-8 animate-fadeInDown">
+                <h1 className="text-4xl md:text-5xl font-bold text-white mb-3 tracking-tight">
+                    Tecnologías <span className="text-amber-400">Web</span>
+                </h1>
+                <p className="text-lg text-slate-400 max-w-2xl">
+                  Fundamentos y herramientas utilizadas en el desarrollo de la página web.
+                </p>
+              </header>
+
+              <div className="space-y-12 animate-fadeInUp">
+                  
+                {/* 1. Lenguajes Fundamentales */}
+                <section className="mb-16">
+                    <h2 className="text-2xl font-bold text-white mb-6 border-b border-slate-800 pb-2">
+                        <span className="text-amber-400 mr-2">1.</span>Lenguajes Fundamentales
+                    </h2>
+                    <p className="text-slate-400 mb-8 max-w-3xl">
+                        La base de la plataforma se sustenta en los tres lenguajes estándares de la web:
+                    </p>
+
+                    <div className="grid md:grid-cols-3 gap-6">
+                        {/* HTML5 */}
+                        <div className="bg-slate-900/50 p-5 rounded border border-slate-800 hover:border-orange-500/30 transition-all group">
+                            <h3 className="text-lg font-bold text-orange-400 mb-3 group-hover:text-orange-300">HTML5 <span className="text-slate-500 text-sm font-normal">(Estructura)</span></h3>
+                            <p className="text-slate-400 text-sm leading-relaxed">
+                                Los archivos <code className="code-block">.html</code> actúan como el esqueleto del sitio. Definen la jerarquía del contenido y sirven como contenedores para la lógica de React.
+                            </p>
+                        </div>
+
+                        {/* CSS3 */}
+                        <div className="bg-slate-900/50 p-5 rounded border border-slate-800 hover:border-amber-500/30 transition-all group">
+                            <h3 className="text-lg font-bold text-amber-400 mb-3 group-hover:text-amber-300">CSS3 <span className="text-slate-500 text-sm font-normal">(Estilos)</span></h3>
+                            <p className="text-slate-400 text-sm leading-relaxed">
+                                Gestionado vía <code className="code-block">style.css</code>. Cubre aspectos que las utilidades no alcanzan, como animaciones de entrada (fadeInUp) y personalización estética de la barra de desplazamiento.
+                            </p>
+                        </div>
+
+                        {/* JS */}
+                        <div className="bg-slate-900/50 p-5 rounded border border-slate-800 hover:border-yellow-500/30 transition-all group">
+                            <h3 className="text-lg font-bold text-yellow-400 mb-3 group-hover:text-yellow-300">JavaScript <span className="text-slate-500 text-sm font-normal">(Lógica)</span></h3>
+                            <p className="text-slate-400 text-sm leading-relaxed">
+                                Habilita la interactividad. Se usa su versión moderna ES6+ para gestionar componentes y la lógica de usuario en todo el proyecto.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                {/* 2. Tecnologías de Diseño */}
+                <section className="mb-16">
+                    <h2 className="text-2xl font-bold text-white mb-6 border-b border-slate-800 pb-2">
+                        <span className="text-amber-400 mr-2">2.</span>Frameworks
+                    </h2>
+                    <p className="text-slate-400 mb-8 max-w-3xl">
+                        Sobre los lenguajes base, se han integrado dos herramientas principales para potenciar el desarrollo:
+                    </p>
+
+                    <div className="grid md:grid-cols-2 gap-8">
+                        {/* Tailwind */}
+                        <div className="bg-slate-900/30 rounded overflow-hidden border border-slate-800">
+                            <div className="p-6">
+                                <h3 className="text-xl font-bold text-orange-400 mb-4 flex items-center gap-2">
+                                    Tailwind CSS
+                                    <span className="text-xs bg-orange-900/30 text-orange-300 px-2 py-0.5 rounded border border-orange-800">Diseño Visual</span>
+                                </h3>
+                                <p className="text-slate-400 mb-4 text-sm">
+                                    Es un framework de CSS basado en "clases utilitarias". En lugar de escribir código CSS separado para cada color o margen, se añaden etiquetas directamente en el HTML.
+                                </p>
+                                <div className="bg-slate-950/50 p-4 rounded border-l-2 border-orange-500">
+                                    <span className="block text-xs uppercase tracking-wider text-slate-500 mb-1">Papel Principal</span>
+                                    <p className="text-slate-300 text-sm">Permite un diseño rápido, responsive (adaptable a móviles) y consistente en todas las páginas sin aumentar el tamaño de los archivos de estilo.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* React */}
+                        <div className="bg-slate-900/30 rounded overflow-hidden border border-slate-800">
+                            <div className="p-6">
+                                <h3 className="text-xl font-bold text-amber-400 mb-4 flex items-center gap-2">
+                                    React
+                                    <span className="text-xs bg-amber-900/30 text-amber-300 px-2 py-0.5 rounded border border-amber-800">Componentes</span>
+                                </h3>
+                                <p className="text-slate-400 mb-4 text-sm">
+                                    Es una librería de JavaScript enfocada en la creación de interfaces de usuario. Permite dividir la web en piezas reutilizables.
+                                </p>
+                                <div className="bg-slate-950/50 p-4 rounded border-l-2 border-amber-500">
+                                    <span className="block text-xs uppercase tracking-wider text-slate-500 mb-1">Caso de Uso: NavBar.js?v=2.2</span>
+                                    <p className="text-slate-300 text-sm">Al definir el menú como componente, se puede insertar en cualquier página. Los cambios se reflejan automáticamente en todo el sitio.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* 3. Babel */}
+                <section>
+                    <h2 className="text-2xl font-bold text-white mb-6 border-b border-slate-800 pb-2">
+                        <span className="text-amber-400 mr-2">3.</span>El Procesador: Babel Standalone
+                    </h2>
+                    
+                    <div className="bg-slate-900/50 border border-slate-800 rounded p-6 md:p-8">
+                        <div className="flex flex-col md:flex-row gap-8 items-start">
+                            <div className="flex-1">
+                                <h3 className="text-lg font-semibold text-yellow-400 mb-3">¿Por qué es necesario?</h3>
+                                <p className="text-slate-400 mb-4 leading-relaxed">
+                                    Debido a que el código de React (JSX) no es JavaScript estándar, el navegador no puede leerlo directamente. Babel soluciona esto sin usar servidores complejos.
+                                </p>
+                                
+                                <h3 className="text-lg font-semibold text-white mb-2">Función</h3>
+                                <p className="text-slate-400 mb-4 text-sm">
+                                    Actúa como un traductor en tiempo real. Cuando el usuario abre la página, Babel lee el código de los componentes, lo traduce a un formato que el navegador entiende y permite su ejecución inmediata.
+                                </p>
+                            </div>
+
+                            <div className="w-full md:w-5/12">
+                                <div className="bg-slate-950 rounded p-4 font-mono text-xs border border-slate-800 shadow-inner">
+                                    <div className="text-slate-500 mb-2 border-b border-slate-800 pb-2 text-[10px] uppercase tracking-wider">Implementación</div>
+                                    <code className="text-purple-400">&lt;script</code> <code className="text-sky-400">src</code>=<code className="text-emerald-400">"https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"</code><code className="text-purple-400">&gt;&lt;/script&gt;</code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<App />);
+    </script>
+  </body>
+</html>
+

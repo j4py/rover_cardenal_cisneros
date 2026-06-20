@@ -1,0 +1,204 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Configuración ESP32 | Rover Perseverance</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../style.css" />
+    <style type="text/tailwindcss">
+      @layer utilities {
+        .code-block {
+          @apply font-mono bg-slate-800/50 px-1.5 py-0.5 rounded text-amber-400 text-sm border border-slate-700/50;
+        }
+        .step-card {
+            @apply bg-slate-900/50 p-6 rounded border border-slate-800 hover:border-amber-500/50 transition-colors duration-300;
+        }
+      }
+    </style>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
+    <script type="text/babel" src="../components/NavBar.js?v=2.2"></script>
+  </head>
+  <body class="bg-slate-950 text-slate-200 font-sans min-h-screen selection:bg-amber-500/30">
+    <div id="root"></div>
+    <script type="text/babel">
+      function App() {
+        return (
+            <div className="flex flex-col min-h-screen">
+            <NavBar basePath="../" />
+            
+            <div className="max-w-4xl mx-auto px-4 py-8 md:py-12 w-full flex-1">
+              <header className="mb-12 border-b border-slate-800 pb-8 animate-fadeInDown">
+                <h1 className="text-4xl md:text-5xl font-bold text-white mb-3 tracking-tight">
+                  Ecosistema <span className="text-amber-500">ESP32</span>
+                </h1>
+                <p className="text-lg text-slate-400 max-w-2xl">
+                  Detalle del hardware NodeMCU-32S, librerías de control integradas, tecnologías de comunicación y soporte OTA para el Rover Perseverance.
+                </p>
+              </header>
+
+              <div className="space-y-8 animate-fadeInUp">
+
+                {/* 1. HARDWARE SPECIFICATIONS */}
+                <section className="step-card">
+                    <div className="flex items-start gap-4">
+                        <div className="bg-amber-500/10 p-3 rounded text-amber-400 mt-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                        </div>
+                        <div className="w-full">
+                            <h2 className="text-2xl font-bold text-white mb-2">Hardware y Microcontrolador (NodeMCU-32S)</h2>
+                            <p className="text-slate-400 mb-4 font-sans">
+                                El núcleo del Rover Perseverance está basado en la placa de desarrollo <span className="text-slate-200">NodeMCU-32S</span> (con el chip ESP32-WROOM-32), que integra potencia de cálculo y comunicación inalámbrica en un mismo módulo.
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-sm">
+                                <div className="p-3 bg-slate-950/40 rounded border border-slate-800/80">
+                                    <h3 className="font-semibold text-amber-400 mb-1">Especificaciones Clave</h3>
+                                    <ul className="list-disc list-inside text-slate-400 space-y-1">
+                                        <li>Procesador Tensilica Xtensa LX6 Dual-Core a 240 MHz.</li>
+                                        <li>4 MB de memoria Flash externa para almacenamiento de código.</li>
+                                        <li>520 KB de SRAM interna.</li>
+                                        <li>Conectividad Wi-Fi 802.11 b/g/n (2.4 GHz) y Bluetooth 4.2 BLE.</li>
+                                    </ul>
+                                </div>
+                                <div className="p-3 bg-slate-950/40 rounded border border-slate-800/80">
+                                    <h3 className="font-semibold text-amber-400 mb-1">Pines JTAG Liberados</h3>
+                                    <p className="text-slate-400 leading-relaxed">
+                                        Los pines <span className="code-block">GPIO 12</span>, <span className="code-block">13</span>, <span className="code-block">14</span> y <span className="code-block">15</span> fueron liberados del depurador JTAG para su uso como control digital de tracción y dirección, desactivando sus resistencias pull-up/pull-down parásitas para evitar giros fantasma.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* 2. LIBRARIES */}
+                <section className="step-card">
+                     <div className="flex items-start gap-4">
+                        <div className="bg-amber-500/10 p-3 rounded text-amber-400 mt-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16 6 4 14H4L8 6"/><path d="M12 2v20"/></svg>
+                        </div>
+                        <div className="w-full">
+                            <h2 className="text-2xl font-bold text-white mb-2">Librerías C++ Integradas</h2>
+                            <p className="text-slate-400 mb-4">
+                                Para la gestión de motores, red y protocolos, el firmware hace uso de las siguientes librerías optimizadas para Arduino/ESP32:
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="p-3 bg-slate-950/40 rounded border border-slate-800/80 font-sans">
+                                    <span className="font-mono text-amber-400 font-bold block mb-1">&lt;ArduinoOTA.h&gt;</span>
+                                    <p className="text-slate-400 text-xs">
+                                        Permite la carga de programas inalámbrica (Over-The-Air) directamente desde el puerto de red en Arduino IDE o VS Code.
+                                    </p>
+                                </div>
+                                <div className="p-3 bg-slate-950/40 rounded border border-slate-800/80 font-sans">
+                                    <span className="font-mono text-amber-400 font-bold block mb-1">&lt;WiFiMulti.h&gt;</span>
+                                    <p className="text-slate-400 text-xs">
+                                        Permite registrar múltiples redes WiFi con prioridades. Si la principal falla o cambia, se conecta automáticamente a la secundaria de respaldo.
+                                    </p>
+                                </div>
+                                <div className="p-3 bg-slate-950/40 rounded border border-slate-800/80 font-sans">
+                                    <span className="font-mono text-amber-400 font-bold block mb-1">&lt;ESP32Servo.h&gt;</span>
+                                    <p className="text-slate-400 text-xs">
+                                        Administra las señales PWM analógicas en el ESP32, asignando timers dinámicos para el control de los servos Ackerman.
+                                    </p>
+                                </div>
+                                <div className="p-3 bg-slate-950/40 rounded border border-slate-800/80 font-sans">
+                                    <span className="font-mono text-amber-400 font-bold block mb-1">&lt;ServoEasing.hpp&gt;</span>
+                                    <p className="text-slate-400 text-xs">
+                                        Añade aceleración y suavizado a los movimientos del servo de dirección y tilt de cámara, eliminando temblores mecánicos.
+                                    </p>
+                                </div>
+                                <div className="p-3 bg-slate-950/40 rounded border border-slate-800/80 font-sans">
+                                    <span className="font-mono text-amber-400 font-bold block mb-1">&lt;AccelStepper.h&gt;</span>
+                                    <p className="text-slate-400 text-xs">
+                                        Controla con rampas de velocidad y aceleración el motor paso a paso (stepper) encargado del eje Pan del cardán.
+                                    </p>
+                                </div>
+                                <div className="p-3 bg-slate-950/40 rounded border border-slate-800/80 font-sans">
+                                    <span className="font-mono text-amber-400 font-bold block mb-1">&lt;PubSubClient.h&gt;</span>
+                                    <p className="text-slate-400 text-xs">
+                                        Cliente MQTT para la comunicación asíncrona bidireccional (suscripción a comandos y publicación de telemetría).
+                                    </p>
+                                </div>
+                                <div className="p-3 bg-slate-950/40 rounded border border-slate-800/80 font-sans col-span-1 sm:col-span-2">
+                                    <span className="font-mono text-amber-400 font-bold block mb-1">&lt;ArduinoJson.h&gt;</span>
+                                    <p className="text-slate-400 text-xs">
+                                        Facilita el formateo y parseo de payloads JSON para la comunicación con el panel de control web.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                 {/* 3. NETWORKING & PROTOCOLS */}
+                 <section className="step-card">
+                      <div className="flex items-start gap-4">
+                         <div className="bg-orange-500/10 p-3 rounded text-orange-400 mt-1">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg>
+                         </div>
+                         <div className="w-full">
+                             <h2 className="text-2xl font-bold text-white mb-4">Tecnologías y Protocolos de Comunicación</h2>
+                             <div className="space-y-4">
+                                 <div className="p-4 bg-slate-950/50 rounded border border-slate-800">
+                                     <h3 className="text-lg font-semibold text-orange-400 mb-2">Wi-Fi (Conectividad Inalámbrica)</h3>
+                                     <p className="text-slate-400 text-sm leading-relaxed">
+                                         El ESP32 se conecta de forma inalámbrica a la red de control local (<span className="code-block">M3</span>) mediante sockets TCP/IP estándar, permitiendo el enlace con el bróker de mensajería y la escucha de puertos para carga inalámbrica.
+                                     </p>
+                                 </div>
+                                 <div className="p-4 bg-slate-950/50 rounded border border-slate-800">
+                                     <h3 className="text-lg font-semibold text-orange-400 mb-2">MQTT (Mensajería Pub/Sub en Tiempo Real)</h3>
+                                     <p className="text-slate-400 text-sm leading-relaxed">
+                                         Utilizado para la telemetría y el envío de comandos de joystick. Permite una comunicación ligera y asíncrona en los canales <span className="code-block">rover/move</span>, <span className="code-block">rover/test</span> y <span className="code-block">rover/telemetry</span> en el bróker <span className="text-slate-300">rover.example.com:1883</span>.
+                                     </p>
+                                 </div>
+                                 <div className="p-4 bg-slate-950/50 rounded border border-slate-800">
+                                     <h3 className="text-lg font-semibold text-orange-400 mb-2">Arduino OTA (Over-The-Air Updates)</h3>
+                                     <p className="text-slate-400 text-sm leading-relaxed">
+                                         Facilita el mantenimiento inalámbrico. El Hostname del Rover se anuncia en la red como <span className="code-block">Perseverance-Rover-ESP32</span>. Los desarrolladores pueden compilar y flashear el código directamente a través del aire sin necesidad de desmontar el Rover para conectar el cable micro-USB. <span className="text-amber-400 font-semibold">Se complementa con la librería WiFi Multi, la cual actúa de salvaguarda conectando el Rover a una red de respaldo (SSID M3) si los datos de la red principal cambian o tienen erratas, previniendo bloqueos inalámbricos.</span>
+                                     </p>
+                                 </div>
+                                 <div className="p-4 bg-slate-950/50 rounded border border-slate-800">
+                                     <h3 className="text-lg font-semibold text-orange-400 mb-2">Web OTA (Servidor de Carga con Drag & Drop)</h3>
+                                     <p className="text-slate-400 text-sm leading-relaxed">
+                                         Alternativa robusta en el puerto 80 accesible desde <span className="code-block">http://[IP_DEL_ESP32]/update</span>. Implementa una interfaz interactiva con zona de <b>arrastrar y soltar (Drag & Drop)</b> que permite subir directamente los archivos binarios compilados (<span className="code-block">.bin</span>) desde cualquier navegador de forma local.
+                                     </p>
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                 </section>
+
+                 {/* 4. OPTIMIZATIONS */}
+                 <section className="step-card">
+                      <div className="flex items-start gap-4">
+                         <div className="bg-amber-500/10 p-3 rounded text-amber-400 mt-1">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/></svg>
+                         </div>
+                         <div className="w-full">
+                             <h2 className="text-2xl font-bold text-white mb-2">Optimizaciones Críticas Implementadas</h2>
+                             <p className="text-slate-400 mb-4">
+                                 Para lograr una operación estable y eficiente, se han integrado mecanismos específicos de software:
+                             </p>
+                             <ul className="list-disc list-inside text-slate-300 text-sm space-y-2 leading-relaxed">
+                                 <li><strong className="text-amber-400">Desacoplo LEDC (`ledcDetach`):</strong> Soluciona la limitación de 16 canales PWM del chip liberando los recursos de hardware de los motores en reposo, lo que evita giros no deseados en la Rueda 2.</li>
+                                 <li><strong className="text-amber-400">Kickstart (Arranque de 200ms):</strong> Aplica un pulso a potencia máxima (255) al iniciar el movimiento para vencer la fricción estática de los engranajes sin causar cabeceo continuo.</li>
+                                 <li><strong className="text-amber-400">Promediado Multisampling y Filtro EMA:</strong> Mitiga las fluctuaciones eléctricas de la batería en las lecturas del ADC y compensa la caída de tensión (sag) durante el movimiento.</li>
+                             </ul>
+                          </div>
+                      </div>
+                  </section>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<App />);
+    </script>
+  </body>
+</html>
+

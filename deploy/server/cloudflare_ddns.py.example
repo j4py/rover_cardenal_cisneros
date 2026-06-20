@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+# Actualiza un registro A en Cloudflare (nube gris) con tu IP pública.
+# Rellena las constantes y ejecútalo por cron/systemd-timer si usas Cloudflare con DNS propio.
+# NO pongas el token real en el repo público.
+import urllib.request, json, sys
+
+API_TOKEN = "CAMBIA_CLOUDFLARE_API_TOKEN"
+ZONE_ID   = "CAMBIA_CLOUDFLARE_ZONE_ID"
+RECORD_NAME = "direct.tu-dominio.example"
+
+def get_public_ip():
+    with urllib.request.urlopen("https://api.ipify.org?format=json", timeout=10) as r:
+        return json.loads(r.read().decode())["ip"]
+
+def cf_api(url, method="GET", data=None):
+    req = urllib.request.Request(url, method=method)
+    req.add_header("Authorization", f"Bearer {API_TOKEN}")
+    req.add_header("Content-Type", "application/json")
+    body = json.dumps(data).encode() if data else None
+    with urllib.request.urlopen(req, data=body, timeout=10) as r:
+        return json.loads(r.read().decode())
+
+def main():
+    ip = get_public_ip()
+    res = cf_api(f"https://api.cloudflare.com/client/v4/zones/{ZONE_ID}/dns_records?name={RECORD_NAME}")
+    if not res.get("success") or not res.get("result"):
+        print("No se encontró el registro DNS; créalo primero."); sys.exit(1)
+    rec = res["result"][0]
+    if ip == rec["content"]:
+        print(f"IP sin cambios ({ip})."); return
+    upd = cf_api(f"https://api.cloudflare.com/client/v4/zones/{ZONE_ID}/dns_records/{rec['id']}",
+                 method="PUT",
+                 data={"type": "A", "name": RECORD_NAME, "content": ip, "ttl": 120, "proxied": False})
+    print("IP actualizada." if upd.get("success") else f"Error: {upd}")
+
+if __name__ == "__main__":
+    main()

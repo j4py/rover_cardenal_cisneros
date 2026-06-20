@@ -1,0 +1,16 @@
+[Unit]
+Description=Mars Rover Video Relay Proxy
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+ExecStart=/usr/bin/python3 ${PROXY_PATH}
+WorkingDirectory=${PROXY_DIR}
+StandardOutput=journal
+StandardError=journal
+Restart=always
+RestartSec=5
+User=${PROXY_USER}
+
+[Install]
+WantedBy=multi-user.target
