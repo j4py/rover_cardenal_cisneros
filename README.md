@@ -125,6 +125,15 @@ cd rover_cardenal_cisneros
 ./deploy/deploy.sh
 ```
 
+> **Si al lanzarlo te sale `Permission denied`**, es que los scripts no tienen permiso de ejecución. Dáselo con:
+> ```bash
+> chmod +x deploy/deploy.sh deploy/bootstrap.sh deploy/scripts/*.sh
+> ```
+> O bien ejecútalo directamente con su intérprete (no necesita el bit de ejecución):
+> ```bash
+> sudo bash deploy/deploy.sh
+> ```
+
 El script pregunta todos los datos necesarios (modo, credenciales MQTT, redes WiFi del ESP32, dominios/tokens), **instala siempre el núcleo** (solo lo informa) y **pregunta sí/no** por los opcionales. Genera `mqtt.js` y **rellena las credenciales en los `ESP32/*.ino`** con lo que introduzcas.
 
 ### Componentes
