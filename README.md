@@ -70,7 +70,7 @@ Rover/
 │   ├── Camera_Marcelo_20fps_480x320.ino → Firmware cámara (20 FPS, HVGA)
 │   └── Camera_Marcelo_5fps_640x480.ino  → Firmware cámara (5 FPS, VGA)
 │
-├── Diagrama.pdf                → Diagrama de conexiones
+├── Esquema.pdf                 → Esquema de conexiones
 └── deploy/                     → Despliegue automatizado
     ├── bootstrap.sh            → Instalador de una línea (clona y lanza deploy.sh)
     ├── deploy.sh               → Orquestador interactivo (3 modos)
