@@ -10,7 +10,7 @@ for m in core ui template checks packages webgen firmware mosquitto nginx video_
   . "$DEPLOY_DIR/lib/$m.sh"
 done
 
-DEFAULT_REPO="https://github.com/j4py/rover-perseverance"
+DEFAULT_REPO="https://github.com/j4py/rover_cardenal_cisneros"
 DEFAULT_WEBROOT="/opt/rover"
 ENV_FILE=""
 SKIP_CLONE=0

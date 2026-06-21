@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Bootstrap de una línea: instala git, clona el repo y ejecuta el despliegue.
-#   curl -fsSL https://raw.githubusercontent.com/j4py/rover-perseverance/main/deploy/bootstrap.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/j4py/rover_cardenal_cisneros/main/deploy/bootstrap.sh | bash
 set -eu
 
-REPO_URL="${ROVER_REPO:-https://github.com/j4py/rover-perseverance}"
-CLONE_DIR="${ROVER_DIR:-$HOME/rover-perseverance}"
+REPO_URL="${ROVER_REPO:-https://github.com/j4py/rover_cardenal_cisneros}"
+CLONE_DIR="${ROVER_DIR:-$HOME/rover_cardenal_cisneros}"
 DRY_RUN=0
 [ "${1:-}" = "--dry-run" ] && DRY_RUN=1
 

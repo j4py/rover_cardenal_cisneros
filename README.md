@@ -114,14 +114,14 @@ Rover/
 Todo el lado servidor se instala con un **script interactivo**. En una máquina **Ubuntu** recién instalada, en una sola línea:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/j4py/rover-perseverance/main/deploy/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/j4py/rover_cardenal_cisneros/main/deploy/bootstrap.sh | bash
 ```
 
 O de forma manual:
 
 ```bash
-git clone https://github.com/j4py/rover-perseverance
-cd rover-perseverance
+git clone https://github.com/j4py/rover_cardenal_cisneros
+cd rover_cardenal_cisneros
 ./deploy/deploy.sh
 ```
 
