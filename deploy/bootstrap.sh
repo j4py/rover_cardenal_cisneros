@@ -33,5 +33,9 @@ echo "Lanzando deploy.sh..."
 if [ "$DRY_RUN" = "1" ]; then
   printf '+ bash %s/deploy/deploy.sh\n' "$CLONE_DIR"
 else
-  exec bash "$CLONE_DIR/deploy/deploy.sh" < /dev/tty
+  if [ -c /dev/tty ] && ( [ -t 0 ] || [ -t 1 ] || [ -t 2 ] ); then
+    exec bash "$CLONE_DIR/deploy/deploy.sh" < /dev/tty
+  else
+    exec bash "$CLONE_DIR/deploy/deploy.sh"
+  fi
 fi

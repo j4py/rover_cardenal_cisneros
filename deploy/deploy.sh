@@ -40,6 +40,9 @@ if [ -n "$ENV_FILE" ]; then
   # shellcheck source=/dev/null
   . "$ENV_FILE"
 else
+  if [ ! -t 0 ]; then
+    die "El script se está ejecutando en un entorno no interactivo pero no se ha proporcionado un archivo de configuración (--env). Por favor, ejecuta el script en una terminal interactiva o usa la opción --env."
+  fi
   info "== Configuración del despliegue del Rover =="
   printf '%s  Se te harán unas preguntas; bajo cada una hay una explicación breve ([i]).\n' "$C_DIM" >&2
   printf '  Pulsa Enter para aceptar el valor entre [corchetes]. Las contraseñas no se ven al teclear.%s\n\n' "$C_RST" >&2
