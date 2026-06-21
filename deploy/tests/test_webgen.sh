@@ -21,8 +21,8 @@ assert_contains "$body" 'VIDEO_WS_URL = "ws://192.168.1.50:9002"' "LAN video ws"
 generate_mqtt_js "$TPL_DIR/mqtt.js.tmpl" "$out" ddns "rover.duckdns.org" "rover" "secreto"
 body="$(cat "$out")"
 assert_contains "$body" 'HOST: "rover.duckdns.org"' "DDNS host"
-assert_contains "$body" 'PORT: 443' "DDNS port 443"
-assert_contains "$body" 'VIDEO_WS_URL = "wss://rover.duckdns.org/video"' "DDNS video wss"
+assert_contains "$body" 'PORT: 8443' "DDNS port 8443"
+assert_contains "$body" 'VIDEO_WS_URL = "wss://rover.duckdns.org:8443/video"' "DDNS video wss"
 
 # Modo Cloudflare
 generate_mqtt_js "$TPL_DIR/mqtt.js.tmpl" "$out" cloudflare "example.com" "rover" "secreto"

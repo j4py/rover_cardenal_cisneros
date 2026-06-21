@@ -37,7 +37,7 @@ PubSubClient mqttClient(espClient);
 
 // ==================== PROXY DE VIDEO ====================
 const char* ws_host = "CAMBIA_VIDEO_HOST";
-const int   ws_port = 443;
+const int   ws_port = CAMBIA_VIDEO_PORT;
 const char* ws_path = "/publish";
 
 WebSocketsClient webSocket;
@@ -207,7 +207,11 @@ void setup() {
     Serial.println("[OTA] Listo. Hostname: cam-5fps-vga");
 
     // --- WebSocket ---
-    webSocket.beginSSL(ws_host, ws_port, ws_path);
+    if (ws_port == 443 || ws_port == 8443) {
+        webSocket.beginSSL(ws_host, ws_port, ws_path);
+    } else {
+        webSocket.begin(ws_host, ws_port, ws_path);
+    }
     webSocket.onEvent(webSocketEvent);
     webSocket.setReconnectInterval(5000);
 }

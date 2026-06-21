@@ -1,0 +1,18 @@
+# Normalización de finales de línea.
+# El repositorio guarda SIEMPRE LF; git deja de marcar el CRLF de Windows como cambio.
+* text=auto
+
+# Scripts de shell: deben tener LF sí o sí (con CRLF fallan al ejecutarse en Linux).
+*.sh text eol=lf
+
+# Archivos binarios: git no debe tocarlos nunca.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.webp binary
+*.pdf  binary
+*.zip  binary
+*.bin  binary
+*.hex  binary

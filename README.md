@@ -42,7 +42,7 @@ Rover/
 ├── script.js                   → Funciones JS compartidas (usado por conexiones.html)
 │
 ├── components/
-│   └── NavBar.js               → Mega-menú React unificado (v2.0)
+│   └── NavBar.js               → Menú React unificado (v2.0)
 │
 ├── hardware/
 │   ├── traccion.html           → Tracción 6WD: motores DC, drivers DRV8871H
@@ -62,10 +62,7 @@ Rover/
 │   └── lidar.html              → Sensor LiDAR (integración pendiente)
 │
 ├── docs/
-│   ├── guia.html               → Manual de uso (exportable a PDF)
-│   ├── bom.html                → Bill of Materials por subsistema
-│   ├── bitacora.html           → Registro cronológico del desarrollo
-│   └── pruebas.html            → Casos de prueba con estado de superación
+│   └── guia.html               → Manual de uso (exportable a PDF)
 │
 ├── ESP32/
 │   ├── Mars_Rover.ino          → Firmware principal (tracción, gimbal, MQTT, OTA)
@@ -73,8 +70,7 @@ Rover/
 │   └── Camera_Marcelo/
 │       └── Camera_Marcelo.ino  → Firmware cámara y streaming
 │
-├── imagenes/                   → Recursos gráficos del sitio
-├── Diagrama/                   → Diagramas de conexiones
+├── Diagrama.pdf                → Diagrama de conexiones
 └── deploy/                     → Despliegue automatizado
     ├── bootstrap.sh            → Instalador de una línea (clona y lanza deploy.sh)
     ├── deploy.sh               → Orquestador interactivo (3 modos)
@@ -126,10 +122,13 @@ cd rover_cardenal_cisneros
 ```
 
 > **Si al lanzarlo te sale `Permission denied`**, es que los scripts no tienen permiso de ejecución. Dáselo con:
+>
 > ```bash
 > chmod +x deploy/deploy.sh deploy/bootstrap.sh deploy/scripts/*.sh
 > ```
+>
 > O bien ejecútalo directamente con su intérprete (no necesita el bit de ejecución):
+>
 > ```bash
 > sudo bash deploy/deploy.sh
 > ```
@@ -140,19 +139,19 @@ El script pregunta todos los datos necesarios (modo, credenciales MQTT, redes Wi
 
 Durante la ejecución, cada pregunta lleva una breve explicación en pantalla. Resumen de lo que se pide y para qué:
 
-| Pregunta | Qué es / en qué repercute |
-|----------|---------------------------|
-| **Modo de despliegue** | Cómo se accederá al rover (LAN / DDNS / Cloudflare). Determina qué servicios se instalan y la URL de acceso. |
-| **URL del repositorio** | De dónde se descarga el proyecto. Por defecto, este repo. |
-| **Ruta de despliegue web** | Carpeta desde la que nginx sirve la web. Por defecto `/opt/rover`. |
-| **Usuario del sistema** | Usuario Linux que ejecuta los servicios (relay de vídeo). Normalmente el tuyo. |
-| **Usuario / contraseña MQTT** | Credenciales del broker de mensajería. **La misma contraseña se aplica al broker, a la web y al firmware.** Elige una nueva y no la olvides. |
-| **IP local** (modo LAN) | IP de esta máquina en tu red. La web y los ESP32 se conectarán ahí. Suele autodetectarse. |
-| **Proveedor / hostname / token DDNS** (modo DDNS) | El servicio de DNS dinámico que apunta un nombre a tu IP pública (que cambia), el nombre que creaste, y la clave para actualizarlo. |
-| **Email TLS** (modo DDNS) | Para el certificado HTTPS gratuito (Let's Encrypt). Solo recibe avisos de caducidad. |
-| **Dominio / token** (modo Cloudflare) | Tu dominio en Cloudflare y el token del túnel (da acceso sin abrir puertos en el router). |
-| **Redes WiFi (SSID + contraseña)** | Redes a las que se conectan los ESP32; se graban en su firmware. La 1ª es obligatoria; la 2 y la 3 son de respaldo (opcionales). |
-| **fail2ban** (opcional) | Protección extra anti fuerza bruta por SSH. Recomendable si el servidor está expuesto a Internet. |
+| Pregunta                                          | Qué es / en qué repercute                                                                                                                    |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Modo de despliegue**                            | Cómo se accederá al rover (LAN / DDNS / Cloudflare). Determina qué servicios se instalan y la URL de acceso.                                 |
+| **URL del repositorio**                           | De dónde se descarga el proyecto. Por defecto, este repo.                                                                                    |
+| **Ruta de despliegue web**                        | Carpeta desde la que nginx sirve la web. Por defecto `/opt/rover`.                                                                           |
+| **Usuario del sistema**                           | Usuario Linux que ejecuta los servicios (relay de vídeo). Normalmente el tuyo.                                                               |
+| **Usuario / contraseña MQTT**                     | Credenciales del broker de mensajería. **La misma contraseña se aplica al broker, a la web y al firmware.** Elige una nueva y no la olvides. |
+| **IP local** (modo LAN)                           | IP de esta máquina en tu red. La web y los ESP32 se conectarán ahí. Suele autodetectarse.                                                    |
+| **Proveedor / hostname / token DDNS** (modo DDNS) | El servicio de DNS dinámico que apunta un nombre a tu IP pública (que cambia), el nombre que creaste, y la clave para actualizarlo.          |
+| **Email TLS** (modo DDNS)                         | Para el certificado HTTPS gratuito (Let's Encrypt). Solo recibe avisos de caducidad.                                                         |
+| **Dominio / token** (modo Cloudflare)             | Tu dominio en Cloudflare y el token del túnel (da acceso sin abrir puertos en el router).                                                    |
+| **Redes WiFi (SSID + contraseña)**                | Redes a las que se conectan los ESP32; se graban en su firmware. La 1ª es obligatoria; la 2 y la 3 son de respaldo (opcionales).             |
+| **fail2ban** (opcional)                           | Protección extra anti fuerza bruta por SSH. Recomendable si el servidor está expuesto a Internet.                                            |
 
 > En cada pregunta puedes pulsar **Enter** para aceptar el valor por defecto que aparece entre `[corchetes]`. Las contraseñas no se muestran al teclear.
 
@@ -166,11 +165,11 @@ Durante la ejecución, cada pregunta lleva una breve explicación en pantalla. R
 
 ### Modos de despliegue
 
-| Modo                                 | Para qué                                | Requisitos                                                                  |
-| ------------------------------------ | --------------------------------------- | --------------------------------------------------------------------------- |
-| **Local / LAN**                      | Usar el rover en la red local           | Solo la red local.                                                          |
-| **DDNS** (DuckDNS/FreeDNS/Dynu/YDNS) | Acceso desde Internet con tu IP pública | Cuenta + token del proveedor, port-forward (80/443 y 1883), email para TLS. |
-| **Cloudflare Tunnel**                | Acceso desde Internet sin abrir puertos | Cuenta Cloudflare + dominio + token de túnel.                               |
+| Modo                                 | Para qué                                | Requisitos                                                                   |
+| ------------------------------------ | --------------------------------------- | ---------------------------------------------------------------------------- |
+| **Local / LAN**                      | Usar el rover en la red local           | Solo la red local.                                                           |
+| **DDNS** (DuckDNS/FreeDNS/Dynu/YDNS) | Acceso desde Internet con tu IP pública | Cuenta + token del proveedor, port-forward (80/8443 y 1883), email para TLS. |
+| **Cloudflare Tunnel**                | Acceso desde Internet sin abrir puertos | Cuenta Cloudflare + dominio + token de túnel.                                |
 
 #### Paso a paso — Local / LAN
 
@@ -181,9 +180,9 @@ Durante la ejecución, cada pregunta lleva una breve explicación en pantalla. R
 #### Paso a paso — DDNS
 
 1. Crea una cuenta en DuckDNS/FreeDNS/Dynu/YDNS y un hostname; copia el token.
-2. En el router, reenvía los puertos **80**, **443** y **1883** a la IP del servidor.
+2. En el router, reenvía los puertos **80**, **8443** y **1883** a la IP del servidor.
 3. Ejecuta el script, elige **DDNS**, el proveedor, el hostname, el token y un email (TLS).
-4. El script obtiene el certificado con certbot. Abre `https://<hostname>`.
+4. El script obtiene el certificado con certbot. Abre `https://<hostname>:8443`.
 
 #### Paso a paso — Cloudflare Tunnel
 

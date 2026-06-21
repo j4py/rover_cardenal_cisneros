@@ -24,6 +24,9 @@ install_mosquitto() {
     fi
   fi
 
+  run_root chown root:mosquitto /etc/mosquitto/passwd
+  run_root chmod 0640 /etc/mosquitto/passwd
+
   run_root systemctl enable --now mosquitto
   run_root systemctl restart mosquitto
   ok "mosquitto configurado (usuario: $user)"

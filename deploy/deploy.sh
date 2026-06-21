@@ -174,14 +174,16 @@ generate_mqtt_js "$DEPLOY_DIR/templates/mqtt.js.tmpl" "$WEBROOT/mqtt.js" "$MODE"
 
 # host MQTT para el firmware (nativo 1883): IP en LAN; hostname en ddns; direct.<dominio> en cloudflare
 case "$MODE" in
-  lan)        FW_MQTT_HOST="$HOST_OR_IP"; FW_VIDEO_HOST="$HOST_OR_IP" ;;
-  ddns)       FW_MQTT_HOST="$HOST_OR_IP"; FW_VIDEO_HOST="$HOST_OR_IP" ;;
-  cloudflare) FW_MQTT_HOST="direct.$HOST_OR_IP"; FW_VIDEO_HOST="video.$HOST_OR_IP" ;;
+  lan)        FW_MQTT_HOST="$HOST_OR_IP"; FW_VIDEO_HOST="$HOST_OR_IP"; FW_VIDEO_PORT="9002" ;;
+  ddns)       FW_MQTT_HOST="$HOST_OR_IP"; FW_VIDEO_HOST="$HOST_OR_IP"; FW_VIDEO_PORT="8443" ;;
+  cloudflare) FW_MQTT_HOST="direct.$HOST_OR_IP"; FW_VIDEO_HOST="video.$HOST_OR_IP"; FW_VIDEO_PORT="443" ;;
 esac
-for ino in "$REPO_ROOT/ESP32/Mars_Rover.ino" "$REPO_ROOT/ESP32/gps.ino" "$REPO_ROOT/ESP32/Camera_Marcelo_20fps_480x320.ino"; do
+for ino in "$REPO_ROOT/ESP32/Mars_Rover.ino" "$REPO_ROOT/ESP32/gps.ino" \
+           "$REPO_ROOT/ESP32/Camera_Marcelo_20fps_480x320.ino" \
+           "$REPO_ROOT/ESP32/Camera_Marcelo_5fps_640x480.ino"; do
   [ -f "$ino" ] && fill_firmware_file "$ino" \
     "$WIFI_SSID1" "$WIFI_PASS1" "$WIFI_SSID2" "$WIFI_PASS2" "$WIFI_SSID3" "$WIFI_PASS3" \
-    "$FW_MQTT_HOST" "$MQTT_USER" "$MQTT_PASS" "$FW_VIDEO_HOST"
+    "$FW_MQTT_HOST" "$MQTT_USER" "$MQTT_PASS" "$FW_VIDEO_HOST" "$FW_VIDEO_PORT"
 done
 
 # --- guardar respuestas ---

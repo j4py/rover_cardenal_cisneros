@@ -13,8 +13,8 @@ generate_mqtt_js() {
       export VIDEO_WS_URL="ws://$host:9002"
       ;;
     ddns)
-      export MQTT_WS_HOST="$host" MQTT_WS_PORT="443"
-      export VIDEO_WS_URL="wss://$host/video"
+      export MQTT_WS_HOST="$host" MQTT_WS_PORT="8443"
+      export VIDEO_WS_URL="wss://$host:8443/video"
       ;;
     cloudflare)
       export MQTT_WS_HOST="mqtt.$host" MQTT_WS_PORT="443"

@@ -3,7 +3,7 @@
 // NO pongas credenciales reales aquí: este archivo se publica.
 window.MQTT_CONFIG = {
   HOST: "CAMBIA_MQTT_HOST",      // LAN: IP del servidor · DDNS: hostname · Cloudflare: mqtt.<dominio>
-  PORT: 443,                      // LAN: 80 · DDNS/Cloudflare: 443
+  PORT: 8443,                     // LAN: 80 · DDNS: 8443 · Cloudflare: 443
   PATH: "/mqtt",
   USERNAME: "CAMBIA_MQTT_USER",
   PASSWORD: "CAMBIA_MQTT_PASS"
