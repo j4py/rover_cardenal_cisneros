@@ -60,7 +60,7 @@ char pendingWebChar = 0; // Guarda el carácter enviado desde la web
 
 // ------------------ CALIBRACIÓN DE SERVOS ------------------
 #define OFFSET_SERVO_W1_US 1430
-#define OFFSET_SERVO_W3_US 1408
+#define OFFSET_SERVO_W3_US 1478
 #define OFFSET_SERVO_W4_US 1523
 #define OFFSET_SERVO_W6_US 1522
 #define OFFSET_SERVO_CAM_TILT_US 1472

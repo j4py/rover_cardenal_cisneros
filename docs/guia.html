@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
@@ -232,8 +232,8 @@
                           desc: <>Firmware principal. Controla los 6 <Tooltip id="motordc">motores DC</Tooltip> (<Tooltip id="6wd">tracción 6WD</Tooltip>), los 4 <Tooltip id="servo">servos</Tooltip> de dirección (<Tooltip id="ackermann">geometría Ackermann</Tooltip>), el <Tooltip id="stepper">stepper NEMA 17</Tooltip> con driver <Tooltip id="tmc2209">TMC2209</Tooltip> (<Tooltip id="pan">pan</Tooltip> de cámara) y el servo de <Tooltip id="tilt">tilt</Tooltip>. Se conecta al broker MQTT y publica <Tooltip id="telemetria">telemetría</Tooltip> de batería cada segundo. Soporta actualización <Tooltip id="ota">OTA</Tooltip>.</>,
                         },
                         {
-                          name: "Camera_Marcelo.ino",
-                          desc: <>Firmware de cámara. Captura vídeo JPEG a ~20 <Tooltip id="fps">FPS</Tooltip> con la cámara <Tooltip id="ov2640">OV2640</Tooltip> del módulo Freenove ESP32-S3 y lo transmite en binario vía <Tooltip id="websocket">WebSocket</Tooltip> al proxy de vídeo del servidor.</>,
+                          name: "Camera_Marcelo_*.ino",
+                          desc: <>Firmwares de cámara (versión fluida de 20 FPS HVGA o de alta definición a 5 FPS VGA). Capturan vídeo JPEG con la cámara <Tooltip id="ov2640">OV2640</Tooltip> del módulo Freenove ESP32-S3 y lo transmiten en binario vía <Tooltip id="websocket">WebSocket</Tooltip> al proxy de vídeo del servidor.</>,
                         },
                         {
                           name: "gps.ino",
@@ -262,17 +262,23 @@
 ├── index.html          → Portada: hero, specs, equipo
 ├── control.html        → Centro de Mando (joystick, cámara, GPS, telemetría)
 ├── test.html           → Test Deck (prueba individual de motores y servos)
+├── style.css           → Estilos globales compartidos
+├── script.js           → Funciones JS compartidas (usado por conexiones.html)
+├── calibracion.html    → Herramientas de calibración del rover
 ├── components/
-│   └── NavBar.js       → Mega-menú React unificado (v2.0)
+│   └── NavBar.js       → Mega-menú React unificado (v2.2)
+├── deploy/             → Scripts de despliegue automatizado
+│   ├── deploy.sh       → Orquestador interactivo de despliegue
+│   └── bootstrap.sh    → Instalador de una línea
 ├── hardware/
 │   ├── traccion.html   → Tracción 6WD: motores DC, drivers DRV8871H
 │   ├── electronica.html→ ESP32 y electrónica de control
 │   ├── energia.html    → Sistema de alimentación LiPo 3S
 │   └── conexiones.html → Diagrama interactivo de pines ESP32
 ├── software/
-│   ├── firmware.html   → Visor de los 3 .ino con syntax highlighting
+│   ├── firmware.html   → Visor de los sketches .ino con syntax highlighting
 │   ├── mqtt.html       → Lógica de mensajería MQTT y tópicos
-│   ├── infraestructura.html → Red, Nginx, Cloudflare, Fail2Ban
+│   ├── infraestructura.html → Red, Nginx, Cloudflare, Fail2Ban, SSHFS
 │   └── tecnologias.html→ Stack tecnológico usado
 ├── sensores/
 │   ├── gps.html        → GPS NEO-6M, brújula QMC5883, navegación autónoma
@@ -281,9 +287,10 @@
 ├── docs/
 │   └── guia.html       → Este manual (exportable a PDF)
 └── ESP32/
-    ├── Mars_Rover.ino
-    ├── gps.ino
-    └── Camera_Marcelo/Camera_Marcelo.ino`}</pre>
+    ├── Mars_Rover.ino  → Firmware principal (tracción, gimbal, MQTT, OTA)
+    ├── gps.ino         → Firmware GPS y navegación autónoma
+    ├── Camera_Marcelo_20fps_480x320.ino → Firmware cámara (20 FPS, HVGA)
+    └── Camera_Marcelo_5fps_640x480.ino  → Firmware cámara (5 FPS, VGA)`}</pre>
                   </div>
                 </Section>
 
@@ -328,7 +335,7 @@
                         <ul className="space-y-1 pl-4">
                           {[
                             ["AccelStepper, ServoEasing, PubSubClient, ArduinoJson", "Mars_Rover.ino"],
-                            ["WebSocketsClient, esp_camera.h", "Camera_Marcelo.ino"],
+                            ["WebSocketsClient, esp_camera.h", "Camera_Marcelo_*.ino"],
                             ["TinyGPS++, MechaQMC5883", "gps.ino"],
                           ].map(([libs, fw]) => (
                             <li key={fw} className="flex gap-2 text-xs">
@@ -354,7 +361,7 @@
                   <div>
                     <Step n="1" title="Flashear los ESP32" items={[
                       "Abre cada <code class='text-xs bg-slate-800 px-1 rounded text-slate-300'>.ino</code> en Arduino IDE desde la carpeta <code class='text-xs bg-slate-800 px-1 rounded text-slate-300'>ESP32/</code>.",
-                      "Selecciona la placa correcta: <code class='text-xs bg-slate-800 px-1 rounded text-slate-300'>Mars_Rover.ino</code> y <code class='text-xs bg-slate-800 px-1 rounded text-slate-300'>gps.ino</code> → <strong class='text-slate-300'>ESP32 Dev Module</strong> · <code class='text-xs bg-slate-800 px-1 rounded text-slate-300'>Camera_Marcelo.ino</code> → <strong class='text-slate-300'>Freenove ESP32-S3 WROOM</strong>.",
+                      "Selecciona la placa correcta: <code class='text-xs bg-slate-800 px-1 rounded text-slate-300'>Mars_Rover.ino</code> y <code class='text-xs bg-slate-800 px-1 rounded text-slate-300'>gps.ino</code> → <strong class='text-slate-300'>ESP32 Dev Module</strong> · <code class='text-xs bg-slate-800 px-1 rounded text-slate-300'>Camera_Marcelo_*.ino</code> → <strong class='text-slate-300'>Freenove ESP32-S3 WROOM</strong>.",
                       "Verifica que las credenciales WiFi y MQTT en el código coinciden con tu entorno.",
                       "Compila y sube. La primera vez se hace por cable USB; las siguientes se pueden hacer por OTA.",
                     ]} />
@@ -367,37 +374,53 @@
                         <div className="flex-1 w-px bg-slate-800 mt-2" />
                       </div>
                       <div className="flex-1 pb-1">
-                        <p className="text-sm font-bold text-slate-200 mb-4">Instalar y configurar el servidor</p>
+                        <p className="text-sm font-bold text-slate-200 mb-4">Instalar y configurar el servidor (Recomendado: Despliegue Automatizado)</p>
                         <div className="space-y-4">
-
-                          {/* Mosquitto */}
                           <div className="bg-slate-900/50 border border-slate-800 rounded p-4 space-y-3">
-                            <p className="text-xs font-bold text-orange-400 uppercase tracking-wider">① Mosquitto (broker MQTT)</p>
+                            <p className="text-xs text-slate-400 leading-relaxed">
+                              El lado servidor (Mosquitto, Nginx, proxy de vídeo y Cloudflare o DDNS) se configura de manera completamente automática usando el script interactivo del proyecto.
+                            </p>
                             <div className="space-y-2 text-xs text-slate-400">
-                              <p>Instalar el paquete:</p>
+                              <p>En una máquina <strong>Ubuntu Server</strong> limpia, ejecuta este comando de una sola línea:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`curl -fsSL https://raw.githubusercontent.com/j4py/rover_cardenal_cisneros/main/deploy/bootstrap.sh | bash`}</pre>
+                              <p className="pt-1">O si prefieres clonarlo y ejecutarlo localmente:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`git clone https://github.com/j4py/rover_cardenal_cisneros
+cd rover_cardenal_cisneros
+sudo bash deploy/deploy.sh`}</pre>
+                              <p className="pt-1 text-slate-500">
+                                El script interactivo te preguntará el modo de despliegue (Local/LAN, DDNS o túnel Cloudflare), credenciales MQTT y redes WiFi de tu entorno. Configura todo y deja las credenciales ya rellenadas en los sketches del firmware.
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-slate-900/50 border border-slate-800 rounded p-4 space-y-3">
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Alternativa Avanzada: Configuración Manual</p>
+                            <p className="text-xs text-slate-500 leading-relaxed">
+                              Si deseas montar e instalar cada servicio manualmente en lugar de usar el script interactivo, el servidor web se sirve por defecto desde el directorio <code className="bg-slate-800 px-1 rounded text-slate-300">/var/www/Rover</code> (o el webroot deseado) y los pasos son:
+                            </p>
+                            
+                            {/* Mosquitto Manual */}
+                            <details className="text-xs text-slate-400 space-y-2 mt-2">
+                              <summary className="cursor-pointer text-orange-400 font-semibold hover:text-orange-300 transition-colors">Ver pasos manuales para Mosquitto</summary>
+                              <p className="mt-1">Instalar Mosquitto:</p>
                               <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`sudo apt update && sudo apt install -y mosquitto mosquitto-clients`}</pre>
-                              <p className="pt-1">Crear <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">/etc/mosquitto/conf.d/rover.conf</code>:</p>
-                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`# Puerto TCP estándar MQTT (ESP32 → broker)
-listener 1883
+                              <p className="pt-1">Añadir listeners en <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">/etc/mosquitto/conf.d/rover.conf</code> (puerto 1883 TCP nativo y puerto 9001 WebSockets):</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`listener 1883
 allow_anonymous true
 
-# Puerto WebSockets (interfaz web → broker)
 listener 9001
 protocol websockets
 allow_anonymous true`}</pre>
-                              <p className="pt-1">Habilitar y arrancar:</p>
-                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`sudo systemctl enable mosquitto
-sudo systemctl restart mosquitto`}</pre>
-                            </div>
-                          </div>
+                              <p className="pt-1">Habilitar y reiniciar el servicio:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`sudo systemctl enable mosquitto && sudo systemctl restart mosquitto`}</pre>
+                            </details>
 
-                          {/* Nginx */}
-                          <div className="bg-slate-900/50 border border-slate-800 rounded p-4 space-y-3">
-                            <p className="text-xs font-bold text-orange-400 uppercase tracking-wider">② Nginx (proxy inverso)</p>
-                            <div className="space-y-2 text-xs text-slate-400">
-                              <p>Instalar:</p>
+                            {/* Nginx Manual */}
+                            <details className="text-xs text-slate-400 space-y-2 mt-2">
+                              <summary className="cursor-pointer text-orange-400 font-semibold hover:text-orange-300 transition-colors">Ver pasos manuales para Nginx</summary>
+                              <p className="mt-1">Instalar Nginx:</p>
                               <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`sudo apt install -y nginx`}</pre>
-                              <p className="pt-1">Crear <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">/etc/nginx/sites-available/rover</code>:</p>
+                              <p className="pt-1">Crear archivo de configuración del sitio <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">/etc/nginx/sites-available/rover</code>:</p>
                               <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`server {
     listen 80;
     server_name rover.example.com;
@@ -419,20 +442,18 @@ server {
         proxy_read_timeout 3600s;
     }
 }`}</pre>
-                              <p className="pt-1">Activar y recargar:</p>
+                              <p className="pt-1">Activar y recargar Nginx:</p>
                               <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`sudo ln -s /etc/nginx/sites-available/rover /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl enable nginx && sudo systemctl reload nginx`}</pre>
-                            </div>
-                          </div>
+                            </details>
 
-                          {/* Video proxy */}
-                          <div className="bg-slate-900/50 border border-slate-800 rounded p-4 space-y-3">
-                            <p className="text-xs font-bold text-orange-400 uppercase tracking-wider">③ Proxy de vídeo (video_proxy.py)</p>
-                            <div className="space-y-2 text-xs text-slate-400">
-                              <p>Instalar dependencias Python:</p>
+                            {/* Video Proxy Manual */}
+                            <details className="text-xs text-slate-400 space-y-2 mt-2">
+                              <summary className="cursor-pointer text-orange-400 font-semibold hover:text-orange-300 transition-colors">Ver pasos manuales para el Proxy de Vídeo</summary>
+                              <p className="mt-1">Instalar dependencias e iniciar el servicio python:</p>
                               <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`sudo apt install -y python3 python3-pip
 pip3 install websockets`}</pre>
-                              <p className="pt-1">Crear el servicio en <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">/etc/systemd/system/video_proxy.service</code>:</p>
+                              <p className="pt-1">Crear servicio de systemd en <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">/etc/systemd/system/video_proxy.service</code>:</p>
                               <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`[Unit]
 Description=Rover Video WebSocket Proxy
 After=network.target
@@ -445,54 +466,23 @@ WorkingDirectory=/var/www/Rover
 
 [Install]
 WantedBy=multi-user.target`}</pre>
-                              <p className="pt-1">Habilitar y arrancar:</p>
-                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`sudo systemctl daemon-reload
-sudo systemctl enable video_proxy
-sudo systemctl start video_proxy`}</pre>
-                            </div>
-                          </div>
+                              <p className="pt-1">Iniciar el servicio:</p>
+                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`sudo systemctl daemon-reload && sudo systemctl enable video_proxy && sudo systemctl start video_proxy`}</pre>
+                            </details>
 
-                          {/* Cloudflare */}
-                          <div className="bg-slate-900/50 border border-slate-800 rounded p-4 space-y-3">
-                            <p className="text-xs font-bold text-orange-400 uppercase tracking-wider">④ Cloudflare Tunnel</p>
-                            <div className="space-y-2 text-xs text-slate-400">
-                              <p>Instalar <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">cloudflared</code>:</p>
+                            {/* Cloudflare Manual */}
+                            <details className="text-xs text-slate-400 space-y-2 mt-2">
+                              <summary className="cursor-pointer text-orange-400 font-semibold hover:text-orange-300 transition-colors">Ver pasos manuales para Cloudflare Tunnel</summary>
+                              <p className="mt-1">Instalar cloudflared:</p>
                               <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb
 sudo dpkg -i cloudflared.deb`}</pre>
-                              <p className="pt-1">Autenticar y crear el túnel:</p>
+                              <p className="pt-1">Crear e instalar el túnel:</p>
                               <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`cloudflared tunnel login
-cloudflared tunnel create rover-tunnel`}</pre>
-                              <p className="pt-1">Crear <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">~/.cloudflared/config.yml</code>:</p>
-                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`tunnel: <ID-del-tunnel>
-credentials-file: /root/.cloudflared/<ID-del-tunnel>.json
-
-ingress:
-  - hostname: rover.example.com
-    service: http://localhost:80
-  - hostname: direct.example.com
-    service: tcp://localhost:1883
-  - hostname: video.example.com
-    service: http://localhost:9002
-  - service: http_status:404`}</pre>
-                              <p className="pt-1">Registrar los DNS y arrancar como servicio:</p>
-                              <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-slate-300 overflow-x-auto whitespace-pre">{`cloudflared tunnel route dns rover-tunnel rover.example.com
-cloudflared tunnel route dns rover-tunnel direct.example.com
-cloudflared tunnel route dns rover-tunnel video.example.com
+cloudflared tunnel create rover-tunnel
 sudo cloudflared service install
 sudo systemctl start cloudflared`}</pre>
-                            </div>
+                            </details>
                           </div>
-
-                          {/* Verificación */}
-                          <div className="bg-slate-900/50 border border-slate-800 rounded p-4 space-y-2">
-                            <p className="text-xs font-bold text-orange-400 uppercase tracking-wider">⑤ Verificación final</p>
-                            <pre className="bg-slate-950 border border-slate-800 rounded p-2.5 text-xs font-mono text-slate-300 overflow-x-auto whitespace-pre">{`sudo systemctl status mosquitto
-sudo systemctl status nginx
-sudo systemctl status video_proxy
-sudo systemctl status cloudflared`}</pre>
-                            <p className="text-xs text-slate-400 pt-1">Todos deben mostrar <strong className="text-slate-200">active (running)</strong>. Los dominios <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">direct.example.com</code> y <code className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">video.example.com</code> deben responder desde fuera de la red local.</p>
-                          </div>
-
                         </div>
                       </div>
                     </div>

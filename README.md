@@ -22,7 +22,7 @@ El **Rover Perseverance** es un vehículo todo-terreno de 6 ruedas motrices basa
 El sistema se divide en **tres ESP32 independientes**, cada uno con responsabilidad propia:
 
 - **Mars_Rover.ino** — Firmware principal. Controla los 6 motores DC (tracción 6WD), los 4 servos de dirección (geometría Ackermann), el stepper NEMA 17 con driver TMC2209 (pan de cámara) y el servo de tilt. Se conecta al broker MQTT y publica telemetría de batería cada segundo. Soporta actualización OTA.
-- **Camera_Marcelo.ino** — Firmware de cámara. Captura vídeo JPEG a ~20 FPS con la cámara OV2640 del módulo Freenove ESP32-S3 y lo transmite en binario vía WebSocket al proxy de vídeo del servidor.
+- **Camera_Marcelo_*.ino** — Firmwares de cámara (versión fluida de 20 FPS HVGA o de alta definición a 5 FPS VGA). Capturan vídeo JPEG con la cámara OV2640 del módulo Freenove ESP32-S3 y lo transmiten en binario vía WebSocket al proxy de vídeo del servidor.
 - **gps.ino** — Firmware de navegación. Lee el módulo GPS NEO-6M (NMEA, UART2) y la brújula magnetométrica QMC5883 (I2C). Publica posición y heading en tiempo real y ejecuta un algoritmo de navegación autónoma hacia coordenadas objetivo enviadas por MQTT.
 
 Toda la comunicación entre los ESP32 y la interfaz web pasa por un **broker MQTT Mosquitto** alojado en servidor propio, accesible globalmente a través de un **túnel Cloudflare** sin abrir puertos en el router.
@@ -67,8 +67,8 @@ Rover/
 ├── ESP32/
 │   ├── Mars_Rover.ino          → Firmware principal (tracción, gimbal, MQTT, OTA)
 │   ├── gps.ino                 → Firmware GPS y navegación autónoma
-│   └── Camera_Marcelo/
-│       └── Camera_Marcelo.ino  → Firmware cámara y streaming
+│   ├── Camera_Marcelo_20fps_480x320.ino → Firmware cámara (20 FPS, HVGA)
+│   └── Camera_Marcelo_5fps_640x480.ino  → Firmware cámara (5 FPS, VGA)
 │
 ├── Diagrama.pdf                → Diagrama de conexiones
 └── deploy/                     → Despliegue automatizado
