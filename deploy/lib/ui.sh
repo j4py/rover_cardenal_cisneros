@@ -34,11 +34,19 @@ ask() {
     else
       printf '%s: ' "$prompt" >&2
     fi
-    IFS= read -r reply || reply=''
+    if ! IFS= read -r reply; then
+      if [ -z "$reply" ] && [ -z "$def" ]; then
+        die "Entrada estándar cerrada (EOF). El script interactivo requiere una terminal activa."
+      fi
+      reply="${reply:-$def}"
+    fi
     [ -z "$reply" ] && reply="$def"
     if [ -n "$validator" ]; then
       if "$validator" "$reply"; then printf '%s\n' "$reply"; return 0; fi
       printf '  Valor no válido, inténtalo de nuevo.\n' >&2
+      if [ ! -t 0 ]; then
+        die "Error de validación y la entrada no es una terminal interactiva."
+      fi
       continue
     fi
     printf '%s\n' "$reply"; return 0
@@ -50,10 +58,18 @@ ask_secret() {
   local prompt="$1" reply
   printf '%s: ' "$prompt" >&2
   if [ -t 0 ]; then
-    IFS= read -r -s reply || reply=''
+    if ! IFS= read -r -s reply; then
+      if [ -z "$reply" ]; then
+        die "Entrada estándar cerrada (EOF). El script interactivo requiere una terminal activa."
+      fi
+    fi
     printf '\n' >&2
   else
-    IFS= read -r reply || reply=''
+    if ! IFS= read -r reply; then
+      if [ -z "$reply" ]; then
+        die "Entrada estándar cerrada (EOF) en ask_secret."
+      fi
+    fi
   fi
   printf '%s\n' "$reply"
 }
@@ -65,12 +81,25 @@ ask_yesno() {
     printf '%s [%s/%s]: ' "$prompt" \
       "$([ "$def" = s ] && echo S || echo s)" \
       "$([ "$def" = n ] && echo N || echo n)" >&2
-    IFS= read -r reply || reply=''
+    if ! IFS= read -r reply; then
+      reply="$def"
+      if [ ! -t 0 ]; then
+        case "$reply" in
+          s|S|si|Si|SI|y|Y|yes) return 0 ;;
+          *) return 1 ;;
+        esac
+      fi
+    fi
     [ -z "$reply" ] && reply="$def"
     case "$reply" in
       s|S|si|Si|SI|y|Y|yes) return 0 ;;
       n|N|no|No|NO)         return 1 ;;
-      *) printf '  Responde s o n.\n' >&2 ;;
+      *) 
+        printf '  Responde s o n.\n' >&2
+        if [ ! -t 0 ]; then
+          die "Respuesta no válida en modo no interactivo."
+        fi
+        ;;
     esac
   done
 }
@@ -87,11 +116,18 @@ ask_choice() {
       i=$((i+1))
     done
     printf 'Elige [1-%d]: ' "${#opts[@]}" >&2
-    IFS= read -r reply || reply=''
+    if ! IFS= read -r reply; then
+      if [ ! -t 0 ]; then
+        die "Entrada estándar cerrada (EOF) durante selección de opción."
+      fi
+    fi
     if [ "$reply" -ge 1 ] 2>/dev/null && [ "$reply" -le "${#opts[@]}" ]; then
       printf '%s\n' "${opts[$((reply-1))]%%:*}"
       return 0
     fi
     printf '  Opción no válida.\n' >&2
+    if [ ! -t 0 ]; then
+      die "Selección no válida en modo no interactivo."
+    fi
   done
 }
