@@ -136,6 +136,26 @@ cd rover_cardenal_cisneros
 
 El script pregunta todos los datos necesarios (modo, credenciales MQTT, redes WiFi del ESP32, dominios/tokens), **instala siempre el núcleo** (solo lo informa) y **pregunta sí/no** por los opcionales. Genera `mqtt.js` y **rellena las credenciales en los `ESP32/*.ino`** con lo que introduzcas.
 
+### Qué te preguntará el script
+
+Durante la ejecución, cada pregunta lleva una breve explicación en pantalla. Resumen de lo que se pide y para qué:
+
+| Pregunta | Qué es / en qué repercute |
+|----------|---------------------------|
+| **Modo de despliegue** | Cómo se accederá al rover (LAN / DDNS / Cloudflare). Determina qué servicios se instalan y la URL de acceso. |
+| **URL del repositorio** | De dónde se descarga el proyecto. Por defecto, este repo. |
+| **Ruta de despliegue web** | Carpeta desde la que nginx sirve la web. Por defecto `/opt/rover`. |
+| **Usuario del sistema** | Usuario Linux que ejecuta los servicios (relay de vídeo). Normalmente el tuyo. |
+| **Usuario / contraseña MQTT** | Credenciales del broker de mensajería. **La misma contraseña se aplica al broker, a la web y al firmware.** Elige una nueva y no la olvides. |
+| **IP local** (modo LAN) | IP de esta máquina en tu red. La web y los ESP32 se conectarán ahí. Suele autodetectarse. |
+| **Proveedor / hostname / token DDNS** (modo DDNS) | El servicio de DNS dinámico que apunta un nombre a tu IP pública (que cambia), el nombre que creaste, y la clave para actualizarlo. |
+| **Email TLS** (modo DDNS) | Para el certificado HTTPS gratuito (Let's Encrypt). Solo recibe avisos de caducidad. |
+| **Dominio / token** (modo Cloudflare) | Tu dominio en Cloudflare y el token del túnel (da acceso sin abrir puertos en el router). |
+| **Redes WiFi (SSID + contraseña)** | Redes a las que se conectan los ESP32; se graban en su firmware. La 1ª es obligatoria; la 2 y la 3 son de respaldo (opcionales). |
+| **fail2ban** (opcional) | Protección extra anti fuerza bruta por SSH. Recomendable si el servidor está expuesto a Internet. |
+
+> En cada pregunta puedes pulsar **Enter** para aceptar el valor por defecto que aparece entre `[corchetes]`. Las contraseñas no se muestran al teclear.
+
 ### Componentes
 
 | Categoría                | Componentes                                            | Comportamiento                       |

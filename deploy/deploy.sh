@@ -41,33 +41,54 @@ if [ -n "$ENV_FILE" ]; then
   . "$ENV_FILE"
 else
   info "== Configuración del despliegue del Rover =="
+  printf '%s  Se te harán unas preguntas; bajo cada una hay una explicación breve ([i]).\n' "$C_DIM" >&2
+  printf '  Pulsa Enter para aceptar el valor entre [corchetes]. Las contraseñas no se ven al teclear.%s\n\n' "$C_RST" >&2
+
+  hint "Cómo se accederá al rover: solo red local (LAN), por Internet con DNS dinámico (DDNS) o túnel Cloudflare.|Determina qué servicios se instalan y la URL de acceso."
   MODE="$(ask_choice "Modo de despliegue" \
             "lan:Local / LAN (solo red local)" \
             "ddns:DDNS (DuckDNS/FreeDNS/Dynu/YDNS)" \
             "cloudflare:Cloudflare Tunnel")"
+
+  hint "De dónde se descarga el proyecto. Déjalo por defecto salvo que uses un fork tuyo."
   REPO_URL="$(ask "URL del repositorio git" "$DEFAULT_REPO")"
+
+  hint "Carpeta desde la que nginx servirá la web (el Centro de Mando)."
   WEBROOT="$(ask "Ruta de despliegue web" "$DEFAULT_WEBROOT")"
+
+  hint "Usuario Linux con el que correrán los servicios (relay de vídeo). Normalmente tu usuario actual."
   RUN_USER="$(ask "Usuario del sistema para los servicios" "${SUDO_USER:-$USER}")"
 
+  hint "Usuario del broker de mensajería MQTT. La web y los ESP32 lo usan para conectarse.|Invéntate uno (p.ej. rover)."
   MQTT_USER="$(ask "Usuario MQTT" "rover" validate_nonempty)"
+
+  hint "Se aplica a la vez al broker, a la web y al firmware. Elige una nueva (no la reutilices) y no la olvides."
   MQTT_PASS="$(ask_secret "Contraseña MQTT")"
 
   case "$MODE" in
     lan)
+      hint "IP de esta máquina en tu red local. La web y los ESP32 se conectarán aquí. Suele autodetectarse; confírmala."
       HOST_OR_IP="$(ask "IP local del servidor" "$(hostname -I 2>/dev/null | awk '{print $1}')" validate_ip)"
       ;;
     ddns)
+      hint "Servicio que mantiene un nombre apuntando a tu IP pública (que cambia). Elige donde tengas cuenta."
       DDNS_PROVIDER="$(ask_choice "Proveedor DDNS" "duckdns:DuckDNS" "freedns:FreeDNS" "dynu:Dynu" "ydns:YDNS")"
+      hint "El nombre que creaste en el proveedor (p.ej. rover.duckdns.org). Será la URL pública del rover."
       HOST_OR_IP="$(ask "Hostname DDNS (p.ej. rover.duckdns.org)" "" validate_hostname)"
+      hint "Clave que te da el proveedor para actualizar la IP automáticamente."
       DDNS_TOKEN="$(ask_secret "Token/clave del proveedor DDNS")"
+      hint "Email para el certificado HTTPS gratis (Let's Encrypt). Solo recibe avisos de caducidad."
       TLS_EMAIL="$(ask "Email para el certificado TLS (certbot)" "" validate_nonempty)"
       ;;
     cloudflare)
+      hint "Tu dominio en Cloudflare. El rover se publicará en subdominios suyos (rover., mqtt., video.)."
       HOST_OR_IP="$(ask "Dominio base (p.ej. midominio.com)" "" validate_hostname)"
+      hint "Token del túnel del panel de Cloudflare; conecta tu servidor sin abrir puertos en el router."
       CF_TOKEN="$(ask_secret "Token del túnel Cloudflare")"
       ;;
   esac
 
+  hint "Redes WiFi a las que se conectarán los ESP32 del rover. Se graban en su firmware.|La 1 es obligatoria; la 2 y la 3 son de respaldo (déjalas vacías si no las usas)."
   info "Credenciales WiFi del ESP32 (puedes dejar vacías las redes extra):"
   WIFI_SSID1="$(ask "WiFi SSID 1" "" validate_nonempty)"
   WIFI_PASS1="$(ask_secret "WiFi contraseña 1")"
@@ -76,6 +97,7 @@ else
   WIFI_SSID3="$(ask "WiFi SSID 3 (opcional)" "")"
   WIFI_PASS3=""; [ -n "$WIFI_SSID3" ] && WIFI_PASS3="$(ask_secret "WiFi contraseña 3")"
 
+  hint "Protección extra anti fuerza bruta por SSH. Opcional; recomendable si el servidor da a Internet."
   info "El NÚCLEO se instalará siempre: mosquitto, nginx, video_proxy."
   if ask_yesno "¿Instalar también fail2ban (endurecimiento SSH, opcional)?" n; then
     WITH_FAIL2BAN=1

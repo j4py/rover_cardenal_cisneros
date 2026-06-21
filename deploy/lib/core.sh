@@ -3,9 +3,9 @@
 : "${DRY_RUN:=0}"
 
 if [ -t 1 ]; then
-  C_RED=$'\033[31m'; C_GRN=$'\033[32m'; C_YLW=$'\033[33m'; C_BLU=$'\033[34m'; C_RST=$'\033[0m'
+  C_RED=$'\033[31m'; C_GRN=$'\033[32m'; C_YLW=$'\033[33m'; C_BLU=$'\033[34m'; C_DIM=$'\033[2m'; C_RST=$'\033[0m'
 else
-  C_RED=''; C_GRN=''; C_YLW=''; C_BLU=''; C_RST=''
+  C_RED=''; C_GRN=''; C_YLW=''; C_BLU=''; C_DIM=''; C_RST=''
 fi
 
 info() { printf '%s[INFO]%s %s\n' "$C_BLU" "$C_RST" "$*"; }
@@ -13,6 +13,20 @@ ok()   { printf '%s[ OK ]%s %s\n' "$C_GRN" "$C_RST" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$C_YLW" "$C_RST" "$*" >&2; }
 err()  { printf '%s[FAIL]%s %s\n' "$C_RED" "$C_RST" "$*" >&2; }
 die()  { err "$*"; exit 1; }
+
+# hint TEXTO  -> explicación breve y atenuada antes de una pregunta (a stderr, como los prompts).
+# Acepta varias líneas separando con '|'.
+hint() {
+  local line first=1
+  local IFS='|'
+  for line in $1; do
+    if [ "$first" = 1 ]; then
+      printf '%s  [i] %s%s\n' "$C_DIM" "$line" "$C_RST" >&2; first=0
+    else
+      printf '%s      %s%s\n' "$C_DIM" "$line" "$C_RST" >&2
+    fi
+  done
+}
 
 # Helper genérico (lo usan checks.sh, cloudflare.sh, etc.): ¿existe el comando?
 need_cmd() { command -v "$1" >/dev/null 2>&1; }
