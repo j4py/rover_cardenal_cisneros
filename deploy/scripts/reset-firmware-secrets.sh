@@ -21,6 +21,7 @@ restore_one() {
       -e 's/mqtt_user = "[^"]*"/mqtt_user = "CAMBIA_MQTT_USER"/' \
       -e 's/mqtt_password = "[^"]*"/mqtt_password = "CAMBIA_MQTT_PASS"/' \
       -e 's/ws_host = "[^"]*"/ws_host = "CAMBIA_VIDEO_HOST"/' \
+      -e 's/ws_port = [0-9]*/ws_port = CAMBIA_VIDEO_PORT/' \
       "$f"
     rm -f "$f.bak"
   fi

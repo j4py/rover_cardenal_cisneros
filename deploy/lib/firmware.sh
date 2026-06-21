@@ -14,11 +14,11 @@ _replace_token() {
   _sed_inplace "s/$token/$esc/g" "$file"
 }
 
-# fill_firmware_file FILE  S1 P1 S2 P2 S3 P3  MQTT_HOST MQTT_USER MQTT_PASS VIDEO_HOST
+# fill_firmware_file FILE  S1 P1 S2 P2 S3 P3  MQTT_HOST MQTT_USER MQTT_PASS VIDEO_HOST VIDEO_PORT
 fill_firmware_file() {
   local file="$1"; shift
   local s1="$1" p1="$2" s2="$3" p2="$4" s3="$5" p3="$6"
-  local mhost="$7" muser="$8" mpass="$9" vhost="${10}"
+  local mhost="$7" muser="$8" mpass="$9" vhost="${10:-}" vport="${11:-}"
   [ -f "$file" ] || die "Firmware no encontrado: $file"
   # Slots vacíos copian el primario (inofensivo con WiFiMulti).
   [ -z "$s2" ] && s2="$s1"; [ -z "$p2" ] && p2="$p1"
@@ -37,4 +37,5 @@ fill_firmware_file() {
   _replace_token CAMBIA_MQTT_USER  "$muser" "$file"
   _replace_token CAMBIA_MQTT_PASS  "$mpass" "$file"
   _replace_token CAMBIA_VIDEO_HOST "$vhost" "$file"
+  _replace_token CAMBIA_VIDEO_PORT "$vport" "$file"
 }

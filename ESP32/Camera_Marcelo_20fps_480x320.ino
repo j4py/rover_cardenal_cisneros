@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Camera Marcelo - Modo fluidez: 480x320 HVGA / ~20 FPS
  *  Freenove ESP32-S3 CAM
  *
@@ -33,7 +33,7 @@ PubSubClient mqttClient(espClient);
 
 // ==================== PROXY DE VIDEO ====================
 const char *ws_host = "CAMBIA_VIDEO_HOST";
-const int ws_port = 443;
+const int ws_port = CAMBIA_VIDEO_PORT;
 const char *ws_path = "/publish";
 
 WebSocketsClient webSocket;
@@ -221,7 +221,11 @@ void setup() {
   Serial.println("[OTA] Listo. Hostname: cam-20fps-hvga");
 
   // --- WebSocket ---
-  webSocket.beginSSL(ws_host, ws_port, ws_path);
+  if (ws_port == 443 || ws_port == 8443) {
+    webSocket.beginSSL(ws_host, ws_port, ws_path);
+  } else {
+    webSocket.begin(ws_host, ws_port, ws_path);
+  }
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(2000);
 }
